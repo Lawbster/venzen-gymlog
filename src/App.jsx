@@ -50,7 +50,18 @@ function AppBrand({ theme = 'light', compact = false }) {
 }
 
 function AppFooter() {
-  return <footer className="app-footer">app created and designed by Venzen</footer>
+  return (
+    <footer className="app-footer">
+      <a
+        className="app-footer-link"
+        href="https://venzen.no"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Venzen designs
+      </a>
+    </footer>
+  )
 }
 
 function cloneExercises(exercises = []) {
