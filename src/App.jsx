@@ -35,12 +35,14 @@ import {
 } from './services/sessions'
 
 const GOOGLE_PROVIDER = new GoogleAuthProvider()
-const LOGO_PATH = '/VENZENLOGO.png'
 
-function AppBrand({ compact = false }) {
+function AppBrand({ theme = 'light', compact = false }) {
+  const logoPath =
+    theme === 'dark' ? '/VENZENLOGODARK.png' : '/VENZENLOGOLIGHT.png'
+
   return (
     <img
-      src={LOGO_PATH}
+      src={logoPath}
       alt="Venzen Gym Log"
       className={`brand-logo ${compact ? 'brand-logo-compact' : ''}`}
     />
@@ -862,7 +864,7 @@ function App() {
     return (
       <main className="app-shell">
         <section className="panel">
-          <AppBrand />
+          <AppBrand theme={theme} />
           <p>Firebase is not configured yet.</p>
           <p className="muted">
             Add the required keys to <code>.env.local</code> using
@@ -889,7 +891,7 @@ function App() {
     return (
       <main className="app-shell">
         <section className="panel auth-panel">
-          <AppBrand />
+          <AppBrand theme={theme} />
           <p>You need a google account in order to use this application</p>
           <div className="auth-action-list">
             <button
@@ -924,7 +926,7 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="topbar-brand">
-          <AppBrand compact />
+          <AppBrand theme={theme} compact />
           <p className="muted">Signed in as {user.email}</p>
         </div>
         <div className="topbar-actions">
