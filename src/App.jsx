@@ -140,6 +140,8 @@ function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
 function ExerciseCard({
   exercise,
   disabled,
+  isCollapsed,
+  onToggleCollapse,
   onDeleteExercise,
   onRenameExercise,
   onAddSet,
@@ -147,7 +149,6 @@ function ExerciseCard({
   onUpdateSet,
 }) {
   const [editingName, setEditingName] = useState(false)
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [nameDraft, setNameDraft] = useState(exercise.name)
   const [weightKg, setWeightKg] = useState('')
   const [reps, setReps] = useState('')
@@ -215,7 +216,7 @@ function ExerciseCard({
               <button
                 type="button"
                 className="button-subtle icon-button"
-                onClick={() => setIsCollapsed((value) => !value)}
+                onClick={onToggleCollapse}
                 disabled={disabled}
                 aria-label={isCollapsed ? 'Expand exercise' : 'Minimize exercise'}
                 title={isCollapsed ? 'Expand exercise' : 'Minimize exercise'}
@@ -333,7 +334,6 @@ function HistoryPanel({
 
   const selectedWorkout =
     selectedDaySessionsSorted.find((session) => session.id === selectedWorkoutId) ||
-    selectedDaySessionsSorted[0] ||
     null
 
   const drilldownExercises = selectedWorkout
@@ -473,26 +473,31 @@ function HistoryPanel({
             ))}
           </ul>
         )}
-        {drilldownExercises.length === 0 && (
+        {!selectedWorkout && selectedDaySessionsSorted.length > 0 && (
+          <p className="empty-message">Select a workout to view exercises.</p>
+        )}
+        {selectedWorkout && drilldownExercises.length === 0 && (
           <p className="empty-message">No exercises logged for this workout.</p>
         )}
-        <ul className="history-exercise-list">
-          {drilldownExercises.map((entry) => {
-            const key = `${entry.sessionId}:${entry.exercise.id}`
-            return (
-              <li key={key}>
-                <button
-                  type="button"
-                  className={`history-item-button ${selectedExerciseKey === key ? 'selected' : ''}`}
-                  onClick={() => setSelectedExerciseKey(key)}
-                >
-                  <span>{entry.exercise.name}</span>
-                  <small>{formatDateTime(entry.sessionStartedAt)}</small>
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+        {selectedWorkout && (
+          <ul className="history-exercise-list">
+            {drilldownExercises.map((entry) => {
+              const key = `${entry.sessionId}:${entry.exercise.id}`
+              return (
+                <li key={key}>
+                  <button
+                    type="button"
+                    className={`history-item-button ${selectedExerciseKey === key ? 'selected' : ''}`}
+                    onClick={() => setSelectedExerciseKey(key)}
+                  >
+                    <span>{entry.exercise.name}</span>
+                    <small>{formatDateTime(entry.sessionStartedAt)}</small>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </article>
 
       <article className="panel">
@@ -551,6 +556,7 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('log')
   const [exerciseInput, setExerciseInput] = useState('')
+  const [collapsedExerciseMap, setCollapsedExerciseMap] = useState({})
 
   const [monthCursor, setMonthCursor] = useState(
     new Date(new Date().getFullYear(), new Date().getMonth(), 1),
@@ -607,6 +613,17 @@ function App() {
     [sessions],
   )
 
+  const sortedActiveExercises = useMemo(() => {
+    if (!activeSession) {
+      return []
+    }
+    return [...(activeSession.exercises || [])].sort(
+      (left, right) =>
+        new Date(right.createdAt || 0).getTime() -
+        new Date(left.createdAt || 0).getTime(),
+    )
+  }, [activeSession])
+
   const sessionsByDay = useMemo(() => {
     const map = new Map()
     for (const session of sessions) {
@@ -623,8 +640,10 @@ function App() {
     setIsBusy(true)
     try {
       await action()
+      return true
     } catch (error) {
       setActionError(error.message || 'Unexpected error')
+      return false
     } finally {
       setIsBusy(false)
     }
@@ -680,12 +699,16 @@ function App() {
       return
     }
 
-    await runAction(async () => {
-      const timestamp = nowIso()
+    const timestamp = nowIso()
+    const nextExerciseId = crypto.randomUUID()
+    const existingExerciseIds = (activeSession?.exercises || []).map(
+      (exercise) => exercise.id,
+    )
+
+    const wasSuccessful = await runAction(async () => {
       await withActiveSession((exercises) => [
-        ...exercises,
         {
-          id: crypto.randomUUID(),
+          id: nextExerciseId,
           name: trimmed,
           catalogId: findExerciseId(trimmed),
           startedAt: timestamp,
@@ -693,9 +716,30 @@ function App() {
           updatedAt: timestamp,
           sets: [],
         },
+        ...exercises,
       ])
       setExerciseInput('')
     })
+
+    if (!wasSuccessful) {
+      return
+    }
+
+    setCollapsedExerciseMap(() => {
+      const nextMap = {}
+      for (const exerciseId of existingExerciseIds) {
+        nextMap[exerciseId] = true
+      }
+      nextMap[nextExerciseId] = false
+      return nextMap
+    })
+  }
+
+  function toggleExerciseCollapse(exerciseId) {
+    setCollapsedExerciseMap((current) => ({
+      ...current,
+      [exerciseId]: !current[exerciseId],
+    }))
   }
 
   async function renameExercise(exerciseId, nextName) {
@@ -965,11 +1009,13 @@ function App() {
                   </p>
                 )}
 
-                {activeSession.exercises.map((exercise) => (
+                {sortedActiveExercises.map((exercise) => (
                   <ExerciseCard
                     key={exercise.id}
                     exercise={exercise}
                     disabled={isBusy}
+                    isCollapsed={Boolean(collapsedExerciseMap[exercise.id])}
+                    onToggleCollapse={() => toggleExerciseCollapse(exercise.id)}
                     onRenameExercise={renameExercise}
                     onDeleteExercise={deleteExercise}
                     onAddSet={addSet}
