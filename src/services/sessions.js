@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDocs,
   limit,
@@ -73,4 +74,9 @@ export async function updateWorkoutSession(userId, sessionId, patch) {
     ...patch,
     updatedAt: nowIso(),
   })
+}
+
+export async function deleteWorkoutSession(userId, sessionId) {
+  const sessionRef = doc(db, 'users', userId, 'sessions', sessionId)
+  await deleteDoc(sessionRef)
 }

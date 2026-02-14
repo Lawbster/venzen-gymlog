@@ -12,8 +12,10 @@ import {
   CgChevronDown,
   CgChevronUp,
   CgLogOut,
+  CgPen,
   CgTrash,
 } from 'react-icons/cg'
+import { FaMedal } from 'react-icons/fa'
 import './App.css'
 import { auth, isFirebaseConfigured } from './firebase'
 import { EXERCISE_PRESETS } from './data/exercises'
@@ -25,6 +27,7 @@ import {
   toDayKey,
 } from './lib/date'
 import {
+  deleteWorkoutSession,
   startWorkoutSession,
   subscribeSessions,
   updateWorkoutSession,
@@ -109,11 +112,13 @@ function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
           <div className="set-row-actions">
             <button
               type="button"
-              className="button-subtle"
+              className="button-subtle icon-button"
               onClick={() => setIsEditing(true)}
               disabled={disabled}
+              aria-label={`Edit set ${index + 1}`}
+              title={`Edit set ${index + 1}`}
             >
-              Edit
+              <CgPen aria-hidden="true" />
             </button>
             <button
               type="button"
@@ -305,22 +310,39 @@ function HistoryPanel({
   selectedDay,
   onSelectDay,
   sessionsByDay,
+  disabled,
+  onRequestDeleteWorkout,
 }) {
   const calendarDays = useMemo(
     () => getCalendarGrid(monthCursor),
     [monthCursor],
   )
 
-  const selectedDaySessions = sessionsByDay.get(selectedDay) || []
-  const drilldownExercises = selectedDaySessions.flatMap((session) =>
-    session.exercises.map((exercise) => ({
-      exercise,
-      sessionId: session.id,
-      sessionStartedAt: session.startedAt,
-    })),
+  const selectedDaySessionsSorted = useMemo(
+    () => {
+      const selectedDaySessions = sessionsByDay.get(selectedDay) || []
+      return [...selectedDaySessions].sort(
+        (left, right) => new Date(left.startedAt) - new Date(right.startedAt),
+      )
+    },
+    [sessionsByDay, selectedDay],
   )
 
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState(null)
   const [selectedExerciseKey, setSelectedExerciseKey] = useState(null)
+
+  const selectedWorkout =
+    selectedDaySessionsSorted.find((session) => session.id === selectedWorkoutId) ||
+    selectedDaySessionsSorted[0] ||
+    null
+
+  const drilldownExercises = selectedWorkout
+    ? (selectedWorkout.exercises || []).map((exercise) => ({
+        exercise,
+        sessionId: selectedWorkout.id,
+        sessionStartedAt: selectedWorkout.startedAt,
+      }))
+    : []
 
   const selectedExercise = drilldownExercises.find(
     (entry) => `${entry.sessionId}:${entry.exercise.id}` === selectedExerciseKey,
@@ -378,25 +400,31 @@ function HistoryPanel({
             const count = sessionsByDay.get(dayKey)?.length || 0
             const isCurrentMonth = date.getMonth() === monthCursor.getMonth()
             const isSelected = dayKey === selectedDay
+            const countLabel = count > 4 ? '4+' : String(count)
+            const ariaLabel = `${date.toLocaleDateString([], {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}: ${count} workout${count === 1 ? '' : 's'}`
 
             return (
               <button
                 key={dayKey}
                 type="button"
                 className={`calendar-day ${isCurrentMonth ? '' : 'calendar-day-muted'} ${isSelected ? 'calendar-day-selected' : ''}`}
-                onClick={() => onSelectDay(dayKey)}
+                onClick={() => {
+                  setSelectedWorkoutId(null)
+                  setSelectedExerciseKey(null)
+                  onSelectDay(dayKey)
+                }}
+                aria-label={ariaLabel}
               >
                 <span className="calendar-day-date">{date.getDate()}</span>
                 {count > 0 && (
-                  <>
-                    <span className="calendar-workout-count">{count}</span>
-                    <span className="calendar-quarter-meter" aria-hidden="true">
-                      <span
-                        className="calendar-quarter-fill"
-                        style={{ height: `${Math.min(count, 4) * 25}%` }}
-                      />
-                    </span>
-                  </>
+                  <span className="calendar-medal-indicator" aria-hidden="true">
+                    <FaMedal className="calendar-medal-icon" />
+                    <span className="calendar-medal-count">{countLabel}</span>
+                  </span>
                 )}
               </button>
             )
@@ -407,10 +435,46 @@ function HistoryPanel({
       <article className="panel">
         <h2>Day</h2>
         <p className="muted">
-          {selectedDay} - {selectedDaySessions.length} workout(s)
+          {selectedDay} - {selectedDaySessionsSorted.length} workout(s)
         </p>
+        {selectedDaySessionsSorted.length > 0 && (
+          <ul className="history-workout-list">
+            {selectedDaySessionsSorted.map((session, index) => (
+              <li key={session.id} className="history-workout-row">
+                <button
+                  type="button"
+                  className={`history-item-button ${selectedWorkout?.id === session.id ? 'selected' : ''}`}
+                  onClick={() => {
+                    setSelectedWorkoutId(session.id)
+                    setSelectedExerciseKey(null)
+                  }}
+                  disabled={disabled}
+                >
+                  <span>Workout {index + 1}</span>
+                  <small>{formatDateTime(session.startedAt)}</small>
+                </button>
+                <button
+                  type="button"
+                  className="button-danger icon-button"
+                  onClick={() =>
+                    onRequestDeleteWorkout({
+                      id: session.id,
+                      name: `Workout ${index + 1}`,
+                      startedAt: session.startedAt,
+                    })
+                  }
+                  disabled={disabled}
+                  aria-label={`Delete workout ${index + 1}`}
+                  title={`Delete workout ${index + 1}`}
+                >
+                  <CgTrash aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         {drilldownExercises.length === 0 && (
-          <p className="empty-message">No exercises logged on this day.</p>
+          <p className="empty-message">No exercises logged for this workout.</p>
         )}
         <ul className="history-exercise-list">
           {drilldownExercises.map((entry) => {
@@ -419,7 +483,7 @@ function HistoryPanel({
               <li key={key}>
                 <button
                   type="button"
-                  className={selectedExerciseKey === key ? 'selected' : ''}
+                  className={`history-item-button ${selectedExerciseKey === key ? 'selected' : ''}`}
                   onClick={() => setSelectedExerciseKey(key)}
                 >
                   <span>{entry.exercise.name}</span>
@@ -483,6 +547,7 @@ function App() {
   const [sessionsError, setSessionsError] = useState('')
   const [actionError, setActionError] = useState('')
   const [isBusy, setIsBusy] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const [activeTab, setActiveTab] = useState('log')
   const [exerciseInput, setExerciseInput] = useState('')
@@ -716,6 +781,17 @@ function App() {
     })
   }
 
+  async function confirmDeleteWorkout() {
+    if (!user || !deleteTarget) {
+      return
+    }
+
+    await runAction(async () => {
+      await deleteWorkoutSession(user.uid, deleteTarget.id)
+      setDeleteTarget(null)
+    })
+  }
+
   if (!isFirebaseConfigured) {
     return (
       <main className="app-shell">
@@ -766,19 +842,31 @@ function App() {
           <p className="muted">Signed in as {user.email}</p>
         </div>
         <div className="topbar-actions">
-          <label className="theme-label" htmlFor="theme-select">
-            Mode
-          </label>
-          <select
-            id="theme-select"
-            className="theme-select"
-            value={theme}
-            onChange={(event) => setTheme(event.target.value)}
-          >
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="queen">Queen</option>
-          </select>
+          <div className="theme-text-switcher" role="group" aria-label="Theme mode">
+            <button
+              type="button"
+              className={`theme-text-button ${theme === 'light' ? 'active' : ''}`}
+              onClick={() => setTheme('light')}
+            >
+              Light
+            </button>
+            <span>-</span>
+            <button
+              type="button"
+              className={`theme-text-button ${theme === 'queen' ? 'active' : ''}`}
+              onClick={() => setTheme('queen')}
+            >
+              Queen
+            </button>
+            <span>-</span>
+            <button
+              type="button"
+              className={`theme-text-button ${theme === 'dark' ? 'active' : ''}`}
+              onClick={() => setTheme('dark')}
+            >
+              Dark
+            </button>
+          </div>
           <button
             type="button"
             className="button-subtle icon-button"
@@ -818,18 +906,9 @@ function App() {
         <section className="panel">
           <header className="panel-header">
             <h2>Workout Session</h2>
-            {!activeSession ? (
+            {!activeSession && (
               <button type="button" onClick={handleStartWorkout} disabled={isBusy}>
                 Start Workout
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="button-danger"
-                onClick={handleEndWorkout}
-                disabled={isBusy}
-              >
-                End Workout
               </button>
             )}
           </header>
@@ -847,11 +926,20 @@ function App() {
               <p className="muted">
                 Started: {formatDateTime(activeSession.startedAt)}
               </p>
+              <button
+                type="button"
+                className="button-danger session-end-button"
+                onClick={handleEndWorkout}
+                disabled={isBusy}
+              >
+                End Workout
+              </button>
 
               <form className="exercise-add-form" onSubmit={handleAddExercise}>
-                <label htmlFor="exercise-search">Add exercise</label>
+                <label htmlFor="exercise-search">Start new exercise</label>
                 <input
                   id="exercise-search"
+                  className="exercise-search-input"
                   type="text"
                   list="exercise-presets"
                   placeholder="Search or type custom exercise"
@@ -902,7 +990,39 @@ function App() {
           selectedDay={selectedDay}
           onSelectDay={setSelectedDay}
           sessionsByDay={sessionsByDay}
+          disabled={isBusy}
+          onRequestDeleteWorkout={setDeleteTarget}
         />
+      )}
+
+      {deleteTarget && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <section className="panel modal-panel">
+            <h3>Delete workout?</h3>
+            <p className="muted">
+              Are you sure you want to delete {deleteTarget.name} logged on{' '}
+              {formatDateTime(deleteTarget.startedAt)}?
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="button-subtle"
+                onClick={() => setDeleteTarget(null)}
+                disabled={isBusy}
+              >
+                No
+              </button>
+              <button
+                type="button"
+                className="button-danger"
+                onClick={confirmDeleteWorkout}
+                disabled={isBusy}
+              >
+                Yes
+              </button>
+            </div>
+          </section>
+        </div>
       )}
     </main>
   )
