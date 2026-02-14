@@ -35,7 +35,7 @@ import {
 } from './services/sessions'
 
 const GOOGLE_PROVIDER = new GoogleAuthProvider()
-const LOGO_PATH = '/VENZENLOGO%20385x135.png'
+const LOGO_PATH = '/VENZENLOGO.png'
 
 function AppBrand({ compact = false }) {
   return (
