@@ -176,6 +176,10 @@
   gap: 10px;
 }
 
+.exercise-card-collapsible {
+  cursor: pointer;
+}
+
 .exercise-header {
   display: flex;
   justify-content: space-between;
@@ -197,6 +201,10 @@
   margin: 0;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.set-row-timer {
+  font-size: 0.76rem;
 }
 
 .set-list {
@@ -262,6 +270,20 @@
   margin: 8px 0 14px;
   width: 100%;
   max-width: 420px;
+}
+
+.session-timer {
+  margin: 4px 0 6px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.session-live-notify {
+  margin: 0 0 8px;
+}
+
+.session-live-notify-note {
+  margin: 0 0 8px;
 }
 
 .history-grid {

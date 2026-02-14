@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['vite.svg'],
+      includeAssets: ['venzensmalllogo.svg'],
       manifest: {
         name: 'Venzen Gym Log',
         short_name: 'GymLog',
@@ -19,12 +19,12 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/vite.svg',
+            src: '/venzensmalllogo.svg',
             sizes: '192x192',
             type: 'image/svg+xml',
           },
           {
-            src: '/vite.svg',
+            src: '/venzensmalllogo.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
           },

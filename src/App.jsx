@@ -9,8 +9,6 @@ import {
 } from 'firebase/auth'
 import {
   CgAddR,
-  CgChevronDown,
-  CgChevronUp,
   CgLogOut,
   CgPen,
   CgTrash,
@@ -35,6 +33,7 @@ import {
 } from './services/sessions'
 
 const GOOGLE_PROVIDER = new GoogleAuthProvider()
+const DEFAULT_APP_TITLE = 'Venzen Gym Log'
 
 function AppBrand({ theme = 'light', compact = false }) {
   const logoPath =
@@ -64,6 +63,57 @@ function AppFooter() {
   )
 }
 
+function getElapsedSeconds(fromIso, nowMs) {
+  const fromMs = Date.parse(fromIso || '')
+  if (Number.isNaN(fromMs)) {
+    return 0
+  }
+  return Math.max(0, Math.floor((nowMs - fromMs) / 1000))
+}
+
+function formatHhMmSs(totalSeconds) {
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':')
+}
+
+function formatMmSs(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+async function upsertWorkoutNotification(elapsedLabel) {
+  if (
+    typeof window === 'undefined' ||
+    !('Notification' in window) ||
+    !('serviceWorker' in navigator) ||
+    Notification.permission !== 'granted'
+  ) {
+    return
+  }
+
+  const registration = await navigator.serviceWorker.ready
+  await registration.showNotification('Venzen Gym Log', {
+    body: `Current workout - ${elapsedLabel}`,
+    tag: 'active-workout',
+    renotify: false,
+    silent: true,
+    requireInteraction: true,
+  })
+}
+
+async function clearWorkoutNotification() {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return
+  }
+
+  const registration = await navigator.serviceWorker.ready
+  const notifications = await registration.getNotifications({ tag: 'active-workout' })
+  notifications.forEach((notification) => notification.close())
+}
+
 function cloneExercises(exercises = []) {
   return exercises.map((exercise) => ({
     ...exercise,
@@ -78,11 +128,12 @@ function findExerciseId(name) {
   return exact?.id ?? null
 }
 
-function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
+function SetRow({ setEntry, index, isLatest, nowMs, disabled, onDelete, onSave }) {
   const [isEditing, setIsEditing] = useState(false)
   const [weightKg, setWeightKg] = useState(String(setEntry.weightKg))
   const [reps, setReps] = useState(String(setEntry.reps))
   const finishedAt = setEntry.finishedAt || setEntry.createdAt
+  const elapsedSinceSetLabel = formatMmSs(getElapsedSeconds(finishedAt, nowMs))
 
   async function handleSave() {
     const nextWeight = Number(weightKg)
@@ -100,6 +151,11 @@ function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
       <div className="set-row-meta">
         Finished: {finishedAt ? formatDateTime(finishedAt) : 'Not available'}
       </div>
+      {isLatest && (
+        <div className="set-row-meta set-row-timer">
+          Time since last set: {elapsedSinceSetLabel}
+        </div>
+      )}
       {isEditing ? (
         <div className="set-row-form">
           <input
@@ -168,6 +224,7 @@ function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
 
 function ExerciseCard({
   exercise,
+  nowMs,
   disabled,
   isCollapsed,
   onToggleCollapse,
@@ -206,8 +263,20 @@ function ExerciseCard({
     setReps('')
   }
 
+  function handleCardToggle(event) {
+    if (disabled) {
+      return
+    }
+
+    if (event.target.closest('button,input,select,textarea,label,a,form')) {
+      return
+    }
+
+    onToggleCollapse()
+  }
+
   return (
-    <article className="exercise-card">
+    <article className="exercise-card exercise-card-collapsible" onClick={handleCardToggle}>
       <header className="exercise-header">
         {editingName ? (
           <div className="inline-edit-row">
@@ -244,20 +313,6 @@ function ExerciseCard({
             <div className="inline-button-row">
               <button
                 type="button"
-                className="button-subtle icon-button"
-                onClick={onToggleCollapse}
-                disabled={disabled}
-                aria-label={isCollapsed ? 'Expand exercise' : 'Minimize exercise'}
-                title={isCollapsed ? 'Expand exercise' : 'Minimize exercise'}
-              >
-                {isCollapsed ? (
-                  <CgChevronDown aria-hidden="true" />
-                ) : (
-                  <CgChevronUp aria-hidden="true" />
-                )}
-              </button>
-              <button
-                type="button"
                 className="button-subtle"
                 onClick={() => setEditingName(true)}
                 disabled={disabled}
@@ -289,6 +344,8 @@ function ExerciseCard({
                 key={setEntry.id}
                 setEntry={setEntry}
                 index={index}
+                isLatest={index === exercise.sets.length - 1}
+                nowMs={nowMs}
                 disabled={disabled}
                 onDelete={(setId) => onDeleteSet(exercise.id, setId)}
                 onSave={(setId, nextWeight, nextReps) =>
@@ -584,6 +641,10 @@ function App() {
   const [actionError, setActionError] = useState('')
   const [isBusy, setIsBusy] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  const [liveNotificationEnabled, setLiveNotificationEnabled] = useState(() =>
+    localStorage.getItem('venzen_live_notification') === '1',
+  )
 
   const [activeTab, setActiveTab] = useState('log')
   const [exerciseInput, setExerciseInput] = useState('')
@@ -655,6 +716,16 @@ function App() {
     )
   }, [activeSession])
 
+  const hasNotificationSupport =
+    typeof window !== 'undefined' &&
+    'Notification' in window &&
+    'serviceWorker' in navigator
+
+  const sessionElapsedSeconds = activeSession
+    ? getElapsedSeconds(activeSession.startedAt, nowMs)
+    : 0
+  const sessionElapsedLabel = formatHhMmSs(sessionElapsedSeconds)
+
   const sessionsByDay = useMemo(() => {
     const map = new Map()
     for (const session of sessions) {
@@ -698,6 +769,7 @@ function App() {
   async function handleSignOut() {
     await runAction(async () => {
       await signOut(auth)
+      await clearWorkoutNotification()
     })
   }
 
@@ -724,7 +796,28 @@ function App() {
         status: 'ended',
         endedAt: nowIso(),
       })
+      await clearWorkoutNotification()
     })
+  }
+
+  async function handleEnableLiveNotification() {
+    if (!hasNotificationSupport) {
+      return
+    }
+
+    if (Notification.permission === 'denied') {
+      setActionError('Browser notification permission is blocked.')
+      return
+    }
+
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission()
+      if (permission !== 'granted') {
+        return
+      }
+    }
+
+    setLiveNotificationEnabled(true)
   }
 
   async function handleAddExercise(event) {
@@ -870,6 +963,36 @@ function App() {
       setDeleteTarget(null)
     })
   }
+
+  useEffect(() => {
+    localStorage.setItem('venzen_live_notification', liveNotificationEnabled ? '1' : '0')
+  }, [liveNotificationEnabled])
+
+  useEffect(() => {
+    if (!activeSession?.id) {
+      return undefined
+    }
+
+    setNowMs(Date.now())
+    const intervalId = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(intervalId)
+  }, [activeSession?.id])
+
+  useEffect(() => {
+    if (!activeSession) {
+      document.title = DEFAULT_APP_TITLE
+      clearWorkoutNotification()
+      return undefined
+    }
+
+    document.title = `${sessionElapsedLabel} - ${DEFAULT_APP_TITLE}`
+
+    if (liveNotificationEnabled) {
+      upsertWorkoutNotification(sessionElapsedLabel)
+    }
+
+    return undefined
+  }, [activeSession, liveNotificationEnabled, sessionElapsedLabel])
 
   if (!isFirebaseConfigured) {
     return (
@@ -1025,6 +1148,25 @@ function App() {
               <p className="muted">
                 Started: {formatDateTime(activeSession.startedAt)}
               </p>
+              <p className="session-timer">Workout timer: {sessionElapsedLabel}</p>
+              {hasNotificationSupport &&
+                (!liveNotificationEnabled || Notification.permission !== 'granted') && (
+                  <button
+                    type="button"
+                    className="button-subtle session-live-notify"
+                    onClick={handleEnableLiveNotification}
+                    disabled={isBusy}
+                  >
+                    Enable live notification
+                  </button>
+                )}
+              {hasNotificationSupport &&
+                liveNotificationEnabled &&
+                Notification.permission === 'granted' && (
+                  <p className="muted session-live-notify-note">
+                    Live notification enabled while workout is active.
+                  </p>
+                )}
               <button
                 type="button"
                 className="button-danger session-end-button"
@@ -1068,6 +1210,7 @@ function App() {
                   <ExerciseCard
                     key={exercise.id}
                     exercise={exercise}
+                    nowMs={nowMs}
                     disabled={isBusy}
                     isCollapsed={Boolean(collapsedExerciseMap[exercise.id])}
                     onToggleCollapse={() => toggleExerciseCollapse(exercise.id)}
