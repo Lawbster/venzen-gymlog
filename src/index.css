@@ -1,0 +1,83 @@
+:root {
+  --green-700: #1e5f3c;
+  --green-900: #111f12;
+  --surface: #f2f5ef;
+  --line: #d5decf;
+  --ink: #182013;
+  --muted: #5d6b56;
+  --danger: #ab3b3b;
+  font-family: 'Segoe UI', 'Calibri', sans-serif;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--ink);
+  background: var(--surface);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 15% 10%, #dfead5 0, #dfead500 34%),
+    radial-gradient(circle at 85% 15%, #f1dfcc 0, #f1dfcc00 38%),
+    linear-gradient(170deg, #f7faf5, #ecf2e7 70%);
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+code {
+  font-family: 'Cascadia Code', 'Consolas', monospace;
+  background: #eef3ea;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 4px;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 8px 12px;
+  background: var(--green-700);
+  color: #fff;
+  cursor: pointer;
+  transition: filter 140ms ease, transform 140ms ease;
+}
+
+button:hover {
+  filter: brightness(1.05);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  color: var(--ink);
+}
