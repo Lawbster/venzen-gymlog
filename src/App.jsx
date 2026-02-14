@@ -7,6 +7,13 @@ import {
   signInWithPopup,
   signOut,
 } from 'firebase/auth'
+import {
+  CgAddR,
+  CgChevronDown,
+  CgChevronUp,
+  CgLogOut,
+  CgTrash,
+} from 'react-icons/cg'
 import './App.css'
 import { auth, isFirebaseConfigured } from './firebase'
 import { EXERCISE_PRESETS } from './data/exercises'
@@ -110,11 +117,13 @@ function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
             </button>
             <button
               type="button"
-              className="button-danger"
+              className="button-danger icon-button"
               onClick={() => onDelete(setEntry.id)}
               disabled={disabled}
+              aria-label={`Delete set ${index + 1}`}
+              title={`Delete set ${index + 1}`}
             >
-              Delete
+              <CgTrash aria-hidden="true" />
             </button>
           </div>
         </>
@@ -200,11 +209,17 @@ function ExerciseCard({
             <div className="inline-button-row">
               <button
                 type="button"
-                className="button-subtle"
+                className="button-subtle icon-button"
                 onClick={() => setIsCollapsed((value) => !value)}
                 disabled={disabled}
+                aria-label={isCollapsed ? 'Expand exercise' : 'Minimize exercise'}
+                title={isCollapsed ? 'Expand exercise' : 'Minimize exercise'}
               >
-                {isCollapsed ? 'Expand' : 'Minimize'}
+                {isCollapsed ? (
+                  <CgChevronDown aria-hidden="true" />
+                ) : (
+                  <CgChevronUp aria-hidden="true" />
+                )}
               </button>
               <button
                 type="button"
@@ -216,11 +231,13 @@ function ExerciseCard({
               </button>
               <button
                 type="button"
-                className="button-danger"
+                className="button-danger icon-button"
                 onClick={() => onDeleteExercise(exercise.id)}
                 disabled={disabled}
+                aria-label={`Delete exercise ${exercise.name}`}
+                title={`Delete exercise ${exercise.name}`}
               >
-                Delete
+                <CgTrash aria-hidden="true" />
               </button>
             </div>
           </>
@@ -266,8 +283,14 @@ function ExerciseCard({
               required
               disabled={disabled}
             />
-            <button type="submit" disabled={disabled}>
-              Add Set
+            <button
+              type="submit"
+              className="icon-button"
+              disabled={disabled}
+              aria-label="Add set"
+              title="Add set"
+            >
+              <CgAddR aria-hidden="true" />
             </button>
           </form>
         </>
@@ -756,8 +779,14 @@ function App() {
             <option value="dark">Dark</option>
             <option value="queen">Queen</option>
           </select>
-          <button type="button" className="button-subtle" onClick={handleSignOut}>
-            Sign Out
+          <button
+            type="button"
+            className="button-subtle icon-button"
+            onClick={handleSignOut}
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <CgLogOut aria-hidden="true" />
           </button>
         </div>
       </header>
