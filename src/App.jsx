@@ -15,6 +15,7 @@ import {
   CgPen,
   CgTrash,
 } from 'react-icons/cg'
+import { FcGoogle } from 'react-icons/fc'
 import { FaMedal } from 'react-icons/fa'
 import './App.css'
 import { auth, isFirebaseConfigured } from './firebase'
@@ -34,6 +35,21 @@ import {
 } from './services/sessions'
 
 const GOOGLE_PROVIDER = new GoogleAuthProvider()
+const LOGO_PATH = '/VENZENLOGO%20385x135.png'
+
+function AppBrand({ compact = false }) {
+  return (
+    <img
+      src={LOGO_PATH}
+      alt="Venzen Gym Log"
+      className={`brand-logo ${compact ? 'brand-logo-compact' : ''}`}
+    />
+  )
+}
+
+function AppFooter() {
+  return <footer className="app-footer">app created and designed by Venzen</footer>
+}
 
 function cloneExercises(exercises = []) {
   return exercises.map((exercise) => ({
@@ -672,6 +688,10 @@ function App() {
     })
   }
 
+  function handleCreateGoogleAccount() {
+    window.location.assign('https://accounts.google.com/signup')
+  }
+
   async function handleStartWorkout() {
     if (!user) {
       return
@@ -842,13 +862,14 @@ function App() {
     return (
       <main className="app-shell">
         <section className="panel">
-          <h1>Venzen Gym Log</h1>
+          <AppBrand />
           <p>Firebase is not configured yet.</p>
           <p className="muted">
             Add the required keys to <code>.env.local</code> using
             <code>.env.example</code> as template, then restart the dev server.
           </p>
         </section>
+        <AppFooter />
       </main>
     )
   }
@@ -859,6 +880,7 @@ function App() {
         <section className="panel">
           <p>Checking auth session...</p>
         </section>
+        <AppFooter />
       </main>
     )
   }
@@ -867,15 +889,33 @@ function App() {
     return (
       <main className="app-shell">
         <section className="panel auth-panel">
-          <h1>Venzen Gym Log</h1>
-          <p>Sign in with Google to start logging workouts.</p>
-          <button type="button" onClick={handleSignIn} disabled={isBusy}>
-            Continue With Google
-          </button>
+          <AppBrand />
+          <p>You need a google account in order to use this application</p>
+          <div className="auth-action-list">
+            <button
+              type="button"
+              className="auth-google-button"
+              onClick={handleSignIn}
+              disabled={isBusy}
+            >
+              <FcGoogle aria-hidden="true" />
+              <span>Log in with Google</span>
+            </button>
+            <button
+              type="button"
+              className="button-subtle auth-google-button"
+              onClick={handleCreateGoogleAccount}
+              disabled={isBusy}
+            >
+              <FcGoogle aria-hidden="true" />
+              <span>Create new account</span>
+            </button>
+          </div>
           {(authError || actionError) && (
             <p className="error">{authError || actionError}</p>
           )}
         </section>
+        <AppFooter />
       </main>
     )
   }
@@ -883,8 +923,8 @@ function App() {
   return (
     <main className="app-shell">
       <header className="topbar">
-        <div>
-          <h1>Venzen Gym Log</h1>
+        <div className="topbar-brand">
+          <AppBrand compact />
           <p className="muted">Signed in as {user.email}</p>
         </div>
         <div className="topbar-actions">
@@ -1072,6 +1112,8 @@ function App() {
           </section>
         </div>
       )}
+
+      <AppFooter />
     </main>
   )
 }
