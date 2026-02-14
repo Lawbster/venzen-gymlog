@@ -23,6 +23,10 @@
   gap: 8px;
 }
 
+.signed-in-text {
+  font-size: 0.8rem;
+}
+
 .topbar {
   display: flex;
   justify-content: space-between;

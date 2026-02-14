@@ -8,7 +8,6 @@ import {
   signOut,
 } from 'firebase/auth'
 import {
-  CgAddR,
   CgLogOut,
   CgPen,
   CgTrash,
@@ -323,12 +322,9 @@ function ExerciseCard({
             />
             <button
               type="submit"
-              className="icon-button"
               disabled={disabled}
-              aria-label="Add set"
-              title="Add set"
             >
-              <CgAddR aria-hidden="true" />
+              Add Set
             </button>
           </form>
         </>
@@ -1093,7 +1089,7 @@ function App() {
       <header className="topbar">
         <div className="topbar-brand">
           <AppBrand theme={theme} compact />
-          <p className="muted">Signed in as {user.email}</p>
+          <p className="muted signed-in-text">Signed in as {user.email}</p>
         </div>
         <div className="topbar-actions">
           <div className="theme-text-switcher" role="group" aria-label="Theme mode">

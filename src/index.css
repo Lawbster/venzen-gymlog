@@ -167,6 +167,7 @@ button {
   padding: 8px 12px;
   background: var(--green-700);
   color: #fff;
+  font-weight: 700;
   cursor: pointer;
   transition: filter 140ms ease, transform 140ms ease;
 }
