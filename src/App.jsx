@@ -18,7 +18,7 @@ import {
 import { FaMedal } from 'react-icons/fa'
 import './App.css'
 import { auth, isFirebaseConfigured } from './firebase'
-import { EXERCISE_PRESETS } from './data/exercises'
+import { EXERCISE_CATALOG, EXERCISE_PRESETS } from './data/exercises'
 import {
   formatDateTime,
   formatMonthLabel,
@@ -43,11 +43,17 @@ function cloneExercises(exercises = []) {
 }
 
 function findExerciseId(name) {
-  const exact = EXERCISE_PRESETS.find(
-    (candidate) => candidate.toLowerCase() === name.toLowerCase(),
+  const exact = EXERCISE_CATALOG.find(
+    (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
   )
-  return exact ?? null
+  return exact?.id ?? null
 }
+
+const EXERCISE_CATEGORIES = Array.from(
+  new Set(
+    EXERCISE_CATALOG.map((exercise) => exercise.category).filter(Boolean),
+  ),
+).sort((left, right) => left.localeCompare(right))
 
 function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
   const [isEditing, setIsEditing] = useState(false)
@@ -556,6 +562,7 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('log')
   const [exerciseInput, setExerciseInput] = useState('')
+  const [exerciseCategoryFilter, setExerciseCategoryFilter] = useState('all')
   const [collapsedExerciseMap, setCollapsedExerciseMap] = useState({})
 
   const [monthCursor, setMonthCursor] = useState(
@@ -623,6 +630,16 @@ function App() {
         new Date(left.createdAt || 0).getTime(),
     )
   }, [activeSession])
+
+  const filteredExercisePresets = useMemo(() => {
+    if (exerciseCategoryFilter === 'all') {
+      return EXERCISE_PRESETS
+    }
+
+    return EXERCISE_CATALOG.filter(
+      (exercise) => exercise.category === exerciseCategoryFilter,
+    ).map((exercise) => exercise.name)
+  }, [exerciseCategoryFilter])
 
   const sessionsByDay = useMemo(() => {
     const map = new Map()
@@ -981,6 +998,20 @@ function App() {
 
               <form className="exercise-add-form" onSubmit={handleAddExercise}>
                 <label htmlFor="exercise-search">Start new exercise</label>
+                <select
+                  className="exercise-filter-select"
+                  value={exerciseCategoryFilter}
+                  onChange={(event) => setExerciseCategoryFilter(event.target.value)}
+                  disabled={isBusy}
+                  aria-label="Filter exercises by category"
+                >
+                  <option value="all">All Categories</option>
+                  {EXERCISE_CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
                 <input
                   id="exercise-search"
                   className="exercise-search-input"
@@ -993,7 +1024,7 @@ function App() {
                   required
                 />
                 <datalist id="exercise-presets">
-                  {EXERCISE_PRESETS.map((exercise) => (
+                  {filteredExercisePresets.map((exercise) => (
                     <option key={exercise} value={exercise} />
                   ))}
                 </datalist>

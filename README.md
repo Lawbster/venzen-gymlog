@@ -22,12 +22,21 @@ React + PWA gym log with Firebase Auth (Google) and Firestore.
 ## 2) Run locally
 ```bash
 npm install
+npm run sync:exercises
 npm run dev
 ```
 
 ## 3) Build
 ```bash
 npm run build
+```
+
+## Exercise catalog source
+- The exercise search list is generated from the Exercemus dataset.
+- To refresh catalog data:
+
+```bash
+npm run sync:exercises
 ```
 
 ## Firestore security rules

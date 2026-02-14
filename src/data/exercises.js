@@ -1,23 +1,4 @@
-export const EXERCISE_PRESETS = [
-  'Back Squat',
-  'Front Squat',
-  'Barbell Bench Press',
-  'Incline Dumbbell Press',
-  'Overhead Press',
-  'Deadlift',
-  'Romanian Deadlift',
-  'Barbell Row',
-  'Lat Pulldown',
-  'Pull-Up',
-  'Dip',
-  'Leg Press',
-  'Hamstring Curl',
-  'Leg Extension',
-  'Walking Lunge',
-  'Calf Raise',
-  'Cable Fly',
-  'Lateral Raise',
-  'Biceps Curl',
-  'Triceps Pushdown',
-  'Plank',
-]
+import exerciseCatalog from './exercise-catalog.json'
+
+export const EXERCISE_CATALOG = exerciseCatalog
+export const EXERCISE_PRESETS = EXERCISE_CATALOG.map((exercise) => exercise.name)
