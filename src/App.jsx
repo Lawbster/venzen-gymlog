@@ -43,6 +43,7 @@ function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
   const [isEditing, setIsEditing] = useState(false)
   const [weightKg, setWeightKg] = useState(String(setEntry.weightKg))
   const [reps, setReps] = useState(String(setEntry.reps))
+  const finishedAt = setEntry.finishedAt || setEntry.createdAt
 
   async function handleSave() {
     const nextWeight = Number(weightKg)
@@ -57,6 +58,9 @@ function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
   return (
     <li className="set-row">
       <div className="set-row-label">Set {index + 1}</div>
+      <div className="set-row-meta">
+        Finished: {finishedAt ? formatDateTime(finishedAt) : 'Not available'}
+      </div>
       {isEditing ? (
         <div className="set-row-form">
           <input
@@ -129,9 +133,11 @@ function ExerciseCard({
   onUpdateSet,
 }) {
   const [editingName, setEditingName] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [nameDraft, setNameDraft] = useState(exercise.name)
   const [weightKg, setWeightKg] = useState('')
   const [reps, setReps] = useState('')
+  const startedAt = exercise.startedAt || exercise.createdAt
 
   async function handleNameSave() {
     const trimmed = nameDraft.trim()
@@ -185,8 +191,21 @@ function ExerciseCard({
           </div>
         ) : (
           <>
-            <h3>{exercise.name}</h3>
+            <div className="exercise-title-block">
+              <h3>{exercise.name}</h3>
+              <p className="exercise-meta">
+                Started: {startedAt ? formatDateTime(startedAt) : 'Not available'}
+              </p>
+            </div>
             <div className="inline-button-row">
+              <button
+                type="button"
+                className="button-subtle"
+                onClick={() => setIsCollapsed((value) => !value)}
+                disabled={disabled}
+              >
+                {isCollapsed ? 'Expand' : 'Minimize'}
+              </button>
               <button
                 type="button"
                 className="button-subtle"
@@ -207,48 +226,52 @@ function ExerciseCard({
           </>
         )}
       </header>
-      <ul className="set-list">
-        {exercise.sets.length === 0 && (
-          <li className="empty-message">No sets yet. Add your first set.</li>
-        )}
-        {exercise.sets.map((setEntry, index) => (
-          <SetRow
-            key={setEntry.id}
-            setEntry={setEntry}
-            index={index}
-            disabled={disabled}
-            onDelete={(setId) => onDeleteSet(exercise.id, setId)}
-            onSave={(setId, nextWeight, nextReps) =>
-              onUpdateSet(exercise.id, setId, nextWeight, nextReps)
-            }
-          />
-        ))}
-      </ul>
-      <form className="set-add-form" onSubmit={handleAddSet}>
-        <input
-          type="number"
-          min="0"
-          step="0.5"
-          placeholder="Weight (kg)"
-          value={weightKg}
-          onChange={(event) => setWeightKg(event.target.value)}
-          required
-          disabled={disabled}
-        />
-        <input
-          type="number"
-          min="1"
-          step="1"
-          placeholder="Reps"
-          value={reps}
-          onChange={(event) => setReps(event.target.value)}
-          required
-          disabled={disabled}
-        />
-        <button type="submit" disabled={disabled}>
-          Add Set
-        </button>
-      </form>
+      {!isCollapsed && (
+        <>
+          <ul className="set-list">
+            {exercise.sets.length === 0 && (
+              <li className="empty-message">No sets yet. Add your first set.</li>
+            )}
+            {exercise.sets.map((setEntry, index) => (
+              <SetRow
+                key={setEntry.id}
+                setEntry={setEntry}
+                index={index}
+                disabled={disabled}
+                onDelete={(setId) => onDeleteSet(exercise.id, setId)}
+                onSave={(setId, nextWeight, nextReps) =>
+                  onUpdateSet(exercise.id, setId, nextWeight, nextReps)
+                }
+              />
+            ))}
+          </ul>
+          <form className="set-add-form" onSubmit={handleAddSet}>
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              placeholder="Weight (kg)"
+              value={weightKg}
+              onChange={(event) => setWeightKg(event.target.value)}
+              required
+              disabled={disabled}
+            />
+            <input
+              type="number"
+              min="1"
+              step="1"
+              placeholder="Reps"
+              value={reps}
+              onChange={(event) => setReps(event.target.value)}
+              required
+              disabled={disabled}
+            />
+            <button type="submit" disabled={disabled}>
+              Add Set
+            </button>
+          </form>
+        </>
+      )}
     </article>
   )
 }
@@ -340,8 +363,18 @@ function HistoryPanel({
                 className={`calendar-day ${isCurrentMonth ? '' : 'calendar-day-muted'} ${isSelected ? 'calendar-day-selected' : ''}`}
                 onClick={() => onSelectDay(dayKey)}
               >
-                <span>{date.getDate()}</span>
-                {count > 0 && <small>{count} workout(s)</small>}
+                <span className="calendar-day-date">{date.getDate()}</span>
+                {count > 0 && (
+                  <>
+                    <span className="calendar-workout-count">{count}</span>
+                    <span className="calendar-quarter-meter" aria-hidden="true">
+                      <span
+                        className="calendar-quarter-fill"
+                        style={{ height: `${Math.min(count, 4) * 25}%` }}
+                      />
+                    </span>
+                  </>
+                )}
               </button>
             )
           })}
@@ -351,7 +384,7 @@ function HistoryPanel({
       <article className="panel">
         <h2>Day</h2>
         <p className="muted">
-          {selectedDay} • {selectedDaySessions.length} workout(s)
+          {selectedDay} - {selectedDaySessions.length} workout(s)
         </p>
         {drilldownExercises.length === 0 && (
           <p className="empty-message">No exercises logged on this day.</p>
@@ -391,6 +424,12 @@ function HistoryPanel({
               {selectedExercise.exercise.sets.map((setEntry, index) => (
                 <li key={setEntry.id} className="set-row">
                   <div className="set-row-label">Set {index + 1}</div>
+                  <div className="set-row-meta">
+                    Finished:{' '}
+                    {setEntry.finishedAt || setEntry.createdAt
+                      ? formatDateTime(setEntry.finishedAt || setEntry.createdAt)
+                      : 'Not available'}
+                  </div>
                   <div className="set-row-values">
                     <span>{setEntry.weightKg} kg</span>
                     <span>{setEntry.reps} reps</span>
@@ -406,6 +445,12 @@ function HistoryPanel({
 }
 
 function App() {
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('venzen_theme')
+    return saved === 'dark' || saved === 'queen' || saved === 'light'
+      ? saved
+      : 'light'
+  })
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [authError, setAuthError] = useState('')
@@ -423,6 +468,11 @@ function App() {
     new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   )
   const [selectedDay, setSelectedDay] = useState(toDayKey(new Date()))
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('venzen_theme', theme)
+  }, [theme])
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -543,14 +593,16 @@ function App() {
     }
 
     await runAction(async () => {
+      const timestamp = nowIso()
       await withActiveSession((exercises) => [
         ...exercises,
         {
           id: crypto.randomUUID(),
           name: trimmed,
           catalogId: findExerciseId(trimmed),
-          createdAt: nowIso(),
-          updatedAt: nowIso(),
+          startedAt: timestamp,
+          createdAt: timestamp,
+          updatedAt: timestamp,
           sets: [],
         },
       ])
@@ -580,6 +632,7 @@ function App() {
 
   async function addSet(exerciseId, weightKg, reps) {
     await runAction(async () => {
+      const timestamp = nowIso()
       await withActiveSession((exercises) =>
         exercises.map((exercise) =>
           exercise.id === exerciseId
@@ -591,8 +644,9 @@ function App() {
                     id: crypto.randomUUID(),
                     weightKg,
                     reps,
-                    createdAt: nowIso(),
-                    updatedAt: nowIso(),
+                    finishedAt: timestamp,
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
                   },
                 ],
                 updatedAt: nowIso(),
@@ -688,9 +742,24 @@ function App() {
           <h1>Venzen Gym Log</h1>
           <p className="muted">Signed in as {user.email}</p>
         </div>
-        <button type="button" className="button-subtle" onClick={handleSignOut}>
-          Sign Out
-        </button>
+        <div className="topbar-actions">
+          <label className="theme-label" htmlFor="theme-select">
+            Mode
+          </label>
+          <select
+            id="theme-select"
+            className="theme-select"
+            value={theme}
+            onChange={(event) => setTheme(event.target.value)}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="queen">Queen</option>
+          </select>
+          <button type="button" className="button-subtle" onClick={handleSignOut}>
+            Sign Out
+          </button>
+        </div>
       </header>
 
       <nav className="tabs">
@@ -746,9 +815,6 @@ function App() {
 
           {activeSession && (
             <>
-              <p className="muted">
-                Session ID: <code>{activeSession.id}</code>
-              </p>
               <p className="muted">
                 Started: {formatDateTime(activeSession.startedAt)}
               </p>
@@ -814,3 +880,4 @@ function App() {
 }
 
 export default App
+

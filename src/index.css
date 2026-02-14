@@ -6,6 +6,38 @@
   --ink: #182013;
   --muted: #5d6b56;
   --danger: #ab3b3b;
+  --error: #a52222;
+
+  --bg-gradient:
+    radial-gradient(circle at 15% 10%, #dfead5 0, #dfead500 34%),
+    radial-gradient(circle at 85% 15%, #f1dfcc 0, #f1dfcc00 38%),
+    linear-gradient(170deg, #f7faf5, #ecf2e7 70%);
+
+  --panel-bg: #ffffffd9;
+  --panel-shadow: 0 8px 25px rgba(37, 53, 29, 0.06);
+  --tab-inactive-bg: #ffffffcc;
+  --tab-inactive-text: #000;
+  --tab-active-bg: var(--green-700);
+  --tab-active-text: #fff;
+  --subtle-bg: #fff;
+  --subtle-text: var(--ink);
+  --subtle-border: var(--line);
+  --card-bg: #fbfcf8;
+  --row-bg: #fff;
+  --calendar-day-bg: #fff;
+  --calendar-date-text: var(--muted);
+  --calendar-count-bg: var(--green-700);
+  --calendar-quarter-bg: #eff5ea;
+  --calendar-quarter-border: #b9cab0;
+  --calendar-quarter-fill: var(--green-700);
+  --day-item-bg: #fff;
+  --day-item-text: #000;
+  --day-item-border: var(--line);
+  --day-item-selected: var(--green-700);
+  --input-bg: #fff;
+  --input-text: var(--ink);
+  --code-bg: #eef3ea;
+
   font-family: 'Segoe UI', 'Calibri', sans-serif;
   line-height: 1.4;
   font-weight: 400;
@@ -17,6 +49,86 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+[data-theme='dark'] {
+  --green-700: #00703c;
+  --surface: #252526;
+  --line: #5d6064;
+  --ink: #f2f3f2;
+  --muted: #c4c7c4;
+  --danger: #bc4a58;
+  --error: #ff9b9b;
+
+  --bg-gradient:
+    radial-gradient(circle at 16% 14%, #303134 0, #30313400 36%),
+    radial-gradient(circle at 84% 14%, #3a3d42 0, #3a3d4200 40%),
+    linear-gradient(175deg, #252526, #1f2022 78%);
+
+  --panel-bg: #2d2f32eb;
+  --panel-shadow: 0 10px 26px rgba(0, 0, 0, 0.42);
+  --tab-inactive-bg: #f3f3f3;
+  --tab-inactive-text: #000;
+  --tab-active-bg: #00703c;
+  --tab-active-text: #fff;
+  --subtle-bg: #ececec;
+  --subtle-text: #000;
+  --subtle-border: #fff;
+  --card-bg: #33363a;
+  --row-bg: #2a2c2f;
+  --calendar-day-bg: #2f3236;
+  --calendar-date-text: #d7dbd7;
+  --calendar-count-bg: #00703c;
+  --calendar-quarter-bg: #272a2d;
+  --calendar-quarter-border: #8ea08e;
+  --calendar-quarter-fill: #00703c;
+  --day-item-bg: #1f3864;
+  --day-item-text: #fff;
+  --day-item-border: #fff;
+  --day-item-selected: #fff;
+  --input-bg: #393c40;
+  --input-text: #fff;
+  --code-bg: #33363a;
+}
+
+[data-theme='queen'] {
+  --green-700: #fc5d87;
+  --surface: #fff4f3;
+  --line: #e7b8c8;
+  --ink: #1f1718;
+  --muted: #654f58;
+  --danger: #c04564;
+  --error: #a41f46;
+
+  --bg-gradient:
+    radial-gradient(circle at 14% 16%, #ffcfe0 0, #ffcfe000 36%),
+    radial-gradient(circle at 82% 17%, #fcd598 0, #fcd59800 40%),
+    linear-gradient(170deg, #fff4f3, #ffd9e6 58%, #fcd598 100%);
+
+  --panel-bg: #fff4f3ec;
+  --panel-shadow: 0 8px 24px rgba(130, 55, 81, 0.16);
+  --tab-inactive-bg: #fff;
+  --tab-inactive-text: #000;
+  --tab-active-bg: #fc5d87;
+  --tab-active-text: #000;
+  --subtle-bg: #ffcfe0;
+  --subtle-text: #000;
+  --subtle-border: #e7b8c8;
+  --card-bg: #fff4f3;
+  --row-bg: #fff;
+  --calendar-day-bg: #fff7f7;
+  --calendar-date-text: #654f58;
+  --calendar-count-bg: #fc5d87;
+  --calendar-quarter-bg: #fff;
+  --calendar-quarter-border: #eeb6c7;
+  --calendar-quarter-fill: #fc5d87;
+  --day-item-bg: #fcd598;
+  --day-item-text: #000;
+  --day-item-border: #8d6737;
+  --day-item-selected: #000;
+  --input-bg: #fff;
+  --input-text: #000;
+  --code-bg: #fff4f3;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -25,10 +137,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 15% 10%, #dfead5 0, #dfead500 34%),
-    radial-gradient(circle at 85% 15%, #f1dfcc 0, #f1dfcc00 38%),
-    linear-gradient(170deg, #f7faf5, #ecf2e7 70%);
+  background: var(--bg-gradient);
 }
 
 h1,
@@ -40,14 +149,15 @@ p {
 
 code {
   font-family: 'Cascadia Code', 'Consolas', monospace;
-  background: #eef3ea;
+  background: var(--code-bg);
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 1px 4px;
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -78,6 +188,14 @@ input {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 10px;
-  background: #fff;
-  color: var(--ink);
+  background: var(--input-bg);
+  color: var(--input-text);
+}
+
+select {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--input-bg);
+  color: var(--input-text);
 }
