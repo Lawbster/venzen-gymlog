@@ -381,6 +381,11 @@
   align-items: stretch;
 }
 
+.history-workout-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
 .history-item-button {
   width: 100%;
   text-align: left;

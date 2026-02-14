@@ -223,27 +223,13 @@ function ExerciseCard({
   isCollapsed,
   onToggleCollapse,
   onDeleteExercise,
-  onRenameExercise,
   onAddSet,
   onDeleteSet,
   onUpdateSet,
 }) {
-  const [editingName, setEditingName] = useState(false)
-  const [nameDraft, setNameDraft] = useState(exercise.name)
   const [weightKg, setWeightKg] = useState('')
   const [reps, setReps] = useState('')
   const startedAt = exercise.startedAt || exercise.createdAt
-
-  async function handleNameSave() {
-    const trimmed = nameDraft.trim()
-    if (!trimmed) {
-      setNameDraft(exercise.name)
-      setEditingName(false)
-      return
-    }
-    await onRenameExercise(exercise.id, trimmed)
-    setEditingName(false)
-  }
 
   async function handleAddSet(event) {
     event.preventDefault()
@@ -272,60 +258,24 @@ function ExerciseCard({
   return (
     <article className="exercise-card exercise-card-collapsible" onClick={handleCardToggle}>
       <header className="exercise-header">
-        {editingName ? (
-          <div className="inline-edit-row">
-            <input
-              type="text"
-              value={nameDraft}
-              onChange={(event) => setNameDraft(event.target.value)}
-              disabled={disabled}
-              aria-label="Exercise name"
-            />
-            <button type="button" onClick={handleNameSave} disabled={disabled}>
-              Save
-            </button>
-            <button
-              type="button"
-              className="button-subtle"
-              onClick={() => {
-                setNameDraft(exercise.name)
-                setEditingName(false)
-              }}
-              disabled={disabled}
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="exercise-title-block">
-              <h3>{exercise.name}</h3>
-              <p className="exercise-meta">
-                Started: {startedAt ? formatDateTime(startedAt) : 'Not available'}
-              </p>
-            </div>
-            <div className="inline-button-row">
-              <button
-                type="button"
-                className="button-subtle"
-                onClick={() => setEditingName(true)}
-                disabled={disabled}
-              >
-                Rename
-              </button>
-              <button
-                type="button"
-                className="button-danger icon-button"
-                onClick={() => onDeleteExercise(exercise.id)}
-                disabled={disabled}
-                aria-label={`Delete exercise ${exercise.name}`}
-                title={`Delete exercise ${exercise.name}`}
-              >
-                <CgTrash aria-hidden="true" />
-              </button>
-            </div>
-          </>
-        )}
+        <div className="exercise-title-block">
+          <h3>{exercise.name}</h3>
+          <p className="exercise-meta">
+            Started: {startedAt ? formatDateTime(startedAt) : 'Not available'}
+          </p>
+        </div>
+        <div className="inline-button-row">
+          <button
+            type="button"
+            className="button-danger icon-button"
+            onClick={() => onDeleteExercise(exercise.id)}
+            disabled={disabled}
+            aria-label={`Delete exercise ${exercise.name}`}
+            title={`Delete exercise ${exercise.name}`}
+          >
+            <CgTrash aria-hidden="true" />
+          </button>
+        </div>
       </header>
       {!isCollapsed && (
         <>
@@ -394,6 +344,7 @@ function HistoryPanel({
   onSelectDay,
   sessionsByDay,
   disabled,
+  onRequestRenameWorkout,
   onRequestDeleteWorkout,
 }) {
   const calendarDays = useMemo(
@@ -521,8 +472,14 @@ function HistoryPanel({
         </p>
         {selectedDaySessionsSorted.length > 0 && (
           <ul className="history-workout-list">
-            {selectedDaySessionsSorted.map((session, index) => (
-              <li key={session.id} className="history-workout-row">
+            {selectedDaySessionsSorted.map((session, index) => {
+              const workoutName =
+                typeof session.name === 'string' && session.name.trim()
+                  ? session.name.trim()
+                  : `Workout ${index + 1}`
+
+              return (
+                <li key={session.id} className="history-workout-row">
                 <button
                   type="button"
                   className={`history-item-button ${selectedWorkout?.id === session.id ? 'selected' : ''}`}
@@ -534,27 +491,45 @@ function HistoryPanel({
                   }}
                   disabled={disabled}
                 >
-                  <span>Workout {index + 1}</span>
+                  <span>{workoutName}</span>
                   <small>{formatDateTime(session.startedAt)}</small>
                 </button>
-                <button
-                  type="button"
-                  className="button-danger icon-button"
-                  onClick={() =>
-                    onRequestDeleteWorkout({
-                      id: session.id,
-                      name: `Workout ${index + 1}`,
-                      startedAt: session.startedAt,
-                    })
-                  }
-                  disabled={disabled}
-                  aria-label={`Delete workout ${index + 1}`}
-                  title={`Delete workout ${index + 1}`}
-                >
-                  <CgTrash aria-hidden="true" />
-                </button>
-              </li>
-            ))}
+                <div className="history-workout-actions">
+                  <button
+                    type="button"
+                    className="button-subtle icon-button"
+                    onClick={() =>
+                      onRequestRenameWorkout({
+                        id: session.id,
+                        name: workoutName,
+                      })
+                    }
+                    disabled={disabled}
+                    aria-label={`Rename ${workoutName}`}
+                    title={`Rename ${workoutName}`}
+                  >
+                    <CgPen aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="button-danger icon-button"
+                    onClick={() =>
+                      onRequestDeleteWorkout({
+                        id: session.id,
+                        name: workoutName,
+                        startedAt: session.startedAt,
+                      })
+                    }
+                    disabled={disabled}
+                    aria-label={`Delete ${workoutName}`}
+                    title={`Delete ${workoutName}`}
+                  >
+                    <CgTrash aria-hidden="true" />
+                  </button>
+                </div>
+                </li>
+              )
+            })}
           </ul>
         )}
         {!selectedWorkout && selectedDaySessionsSorted.length > 0 && (
@@ -865,18 +840,6 @@ function App() {
     }))
   }
 
-  async function renameExercise(exerciseId, nextName) {
-    await runAction(async () => {
-      await mutateActiveSessionExercises((exercises) =>
-        exercises.map((exercise) =>
-          exercise.id === exerciseId
-            ? { ...exercise, name: nextName, updatedAt: nowIso() }
-            : exercise,
-        ),
-      )
-    })
-  }
-
   function requestDeleteExercise(exerciseId) {
     const targetExercise = (activeSession?.exercises || []).find(
       (exercise) => exercise.id === exerciseId,
@@ -952,6 +915,26 @@ function App() {
       workoutId: targetWorkout.id,
       workoutName: targetWorkout.name,
       startedAt: targetWorkout.startedAt,
+    })
+  }
+
+  async function requestRenameWorkout(targetWorkout) {
+    if (!user) {
+      return
+    }
+
+    const draft = window.prompt('Rename workout', targetWorkout.name)
+    if (draft == null) {
+      return
+    }
+
+    const nextName = draft.trim()
+    if (!nextName || nextName === targetWorkout.name) {
+      return
+    }
+
+    await runAction(async () => {
+      await updateWorkoutSession(user.uid, targetWorkout.id, { name: nextName })
     })
   }
 
@@ -1263,7 +1246,6 @@ function App() {
                     disabled={isBusy}
                     isCollapsed={Boolean(collapsedExerciseMap[exercise.id])}
                     onToggleCollapse={() => toggleExerciseCollapse(exercise.id)}
-                    onRenameExercise={renameExercise}
                     onDeleteExercise={requestDeleteExercise}
                     onAddSet={addSet}
                     onUpdateSet={updateSet}
@@ -1284,6 +1266,7 @@ function App() {
           onSelectDay={setSelectedDay}
           sessionsByDay={sessionsByDay}
           disabled={isBusy}
+          onRequestRenameWorkout={requestRenameWorkout}
           onRequestDeleteWorkout={requestDeleteWorkout}
         />
       )}

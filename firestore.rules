@@ -14,6 +14,7 @@ service cloud.firestore {
         'id',
         'userId',
         'status',
+        'name',
         'startedAt',
         'endedAt',
         'exercises',
@@ -23,6 +24,7 @@ service cloud.firestore {
       && data.id == sessionId
       && data.userId == userId
       && data.status in ['active', 'ended']
+      && (!data.keys().hasAny(['name']) || (data.name is string && data.name.size() > 0 && data.name.size() <= 80))
       && isTimestampLike(data.startedAt)
       && (data.endedAt == null || isTimestampLike(data.endedAt))
       && data.exercises is list
