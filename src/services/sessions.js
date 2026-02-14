@@ -7,6 +7,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   setDoc,
   updateDoc,
   where,
@@ -27,6 +28,17 @@ function normalizeSessions(snapshot) {
 
 function sessionsCollection(userId) {
   return collection(db, 'users', userId, 'sessions')
+}
+
+function sessionDocument(userId, sessionId) {
+  return doc(db, 'users', userId, 'sessions', sessionId)
+}
+
+function cloneExercises(exercises = []) {
+  return exercises.map((exercise) => ({
+    ...exercise,
+    sets: (exercise.sets || []).map((setEntry) => ({ ...setEntry })),
+  }))
 }
 
 export function subscribeSessions(userId, onNext, onError) {
@@ -69,7 +81,7 @@ export async function startWorkoutSession(userId) {
 }
 
 export async function updateWorkoutSession(userId, sessionId, patch) {
-  const sessionRef = doc(db, 'users', userId, 'sessions', sessionId)
+  const sessionRef = sessionDocument(userId, sessionId)
   await updateDoc(sessionRef, {
     ...patch,
     updatedAt: nowIso(),
@@ -77,6 +89,27 @@ export async function updateWorkoutSession(userId, sessionId, patch) {
 }
 
 export async function deleteWorkoutSession(userId, sessionId) {
-  const sessionRef = doc(db, 'users', userId, 'sessions', sessionId)
+  const sessionRef = sessionDocument(userId, sessionId)
   await deleteDoc(sessionRef)
+}
+
+export async function mutateSessionExercises(userId, sessionId, mutator) {
+  const sessionRef = sessionDocument(userId, sessionId)
+
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(sessionRef)
+    if (!snapshot.exists()) {
+      throw new Error('Workout session not found')
+    }
+
+    const data = snapshot.data()
+    const nextExercises = mutator(cloneExercises(data.exercises || []))
+
+    transaction.update(sessionRef, {
+      exercises: nextExercises,
+      updatedAt: nowIso(),
+    })
+
+    return nextExercises
+  })
 }

@@ -27,6 +27,7 @@ import {
 } from './lib/date'
 import {
   deleteWorkoutSession,
+  mutateSessionExercises,
   startWorkoutSession,
   subscribeSessions,
   updateWorkoutSession,
@@ -112,13 +113,6 @@ async function clearWorkoutNotification() {
   const registration = await navigator.serviceWorker.ready
   const notifications = await registration.getNotifications({ tag: 'active-workout' })
   notifications.forEach((notification) => notification.close())
-}
-
-function cloneExercises(exercises = []) {
-  return exercises.map((exercise) => ({
-    ...exercise,
-    sets: (exercise.sets || []).map((setEntry) => ({ ...setEntry })),
-  }))
 }
 
 function findExerciseId(name) {
@@ -347,7 +341,9 @@ function ExerciseCard({
                 isLatest={index === exercise.sets.length - 1}
                 nowMs={nowMs}
                 disabled={disabled}
-                onDelete={(setId) => onDeleteSet(exercise.id, setId)}
+                onDelete={(setId) =>
+                  onDeleteSet(exercise.id, exercise.name, setId, setEntry, index)
+                }
                 onSave={(setId, nextWeight, nextReps) =>
                   onUpdateSet(exercise.id, setId, nextWeight, nextReps)
                 }
@@ -751,12 +747,11 @@ function App() {
     }
   }
 
-  async function withActiveSession(mutator) {
+  async function mutateActiveSessionExercises(mutator) {
     if (!user || !activeSession) {
       return
     }
-    const nextExercises = mutator(cloneExercises(activeSession.exercises || []))
-    await updateWorkoutSession(user.uid, activeSession.id, { exercises: nextExercises })
+    await mutateSessionExercises(user.uid, activeSession.id, mutator)
   }
 
   async function handleSignIn() {
@@ -834,7 +829,7 @@ function App() {
     )
 
     const wasSuccessful = await runAction(async () => {
-      await withActiveSession((exercises) => [
+      await mutateActiveSessionExercises((exercises) => [
         {
           id: nextExerciseId,
           name: trimmed,
@@ -872,7 +867,7 @@ function App() {
 
   async function renameExercise(exerciseId, nextName) {
     await runAction(async () => {
-      await withActiveSession((exercises) =>
+      await mutateActiveSessionExercises((exercises) =>
         exercises.map((exercise) =>
           exercise.id === exerciseId
             ? { ...exercise, name: nextName, updatedAt: nowIso() }
@@ -882,18 +877,21 @@ function App() {
     })
   }
 
-  async function deleteExercise(exerciseId) {
-    await runAction(async () => {
-      await withActiveSession((exercises) =>
-        exercises.filter((exercise) => exercise.id !== exerciseId),
-      )
+  function requestDeleteExercise(exerciseId) {
+    const targetExercise = (activeSession?.exercises || []).find(
+      (exercise) => exercise.id === exerciseId,
+    )
+    setDeleteTarget({
+      type: 'exercise',
+      exerciseId,
+      exerciseName: targetExercise?.name || 'this exercise',
     })
   }
 
   async function addSet(exerciseId, weightKg, reps) {
     await runAction(async () => {
       const timestamp = nowIso()
-      await withActiveSession((exercises) =>
+      await mutateActiveSessionExercises((exercises) =>
         exercises.map((exercise) =>
           exercise.id === exerciseId
             ? {
@@ -919,7 +917,7 @@ function App() {
 
   async function updateSet(exerciseId, setId, weightKg, reps) {
     await runAction(async () => {
-      await withActiveSession((exercises) =>
+      await mutateActiveSessionExercises((exercises) =>
         exercises.map((exercise) =>
           exercise.id === exerciseId
             ? {
@@ -937,31 +935,82 @@ function App() {
     })
   }
 
-  async function deleteSet(exerciseId, setId) {
-    await runAction(async () => {
-      await withActiveSession((exercises) =>
-        exercises.map((exercise) =>
-          exercise.id === exerciseId
-            ? {
-                ...exercise,
-                sets: exercise.sets.filter((setEntry) => setEntry.id !== setId),
-                updatedAt: nowIso(),
-              }
-            : exercise,
-        ),
-      )
+  function requestDeleteSet(exerciseId, exerciseName, setId, setEntry, setIndex) {
+    setDeleteTarget({
+      type: 'set',
+      exerciseId,
+      exerciseName,
+      setId,
+      setLabel: `Set ${setIndex + 1}`,
+      setFinishedAt: setEntry.finishedAt || setEntry.createdAt || null,
     })
   }
 
-  async function confirmDeleteWorkout() {
+  function requestDeleteWorkout(targetWorkout) {
+    setDeleteTarget({
+      type: 'workout',
+      workoutId: targetWorkout.id,
+      workoutName: targetWorkout.name,
+      startedAt: targetWorkout.startedAt,
+    })
+  }
+
+  async function confirmDeleteTarget() {
     if (!user || !deleteTarget) {
       return
     }
 
     await runAction(async () => {
-      await deleteWorkoutSession(user.uid, deleteTarget.id)
+      if (deleteTarget.type === 'workout') {
+        await deleteWorkoutSession(user.uid, deleteTarget.workoutId)
+      } else if (deleteTarget.type === 'exercise' && activeSession?.id) {
+        await mutateSessionExercises(user.uid, activeSession.id, (exercises) =>
+          exercises.filter((exercise) => exercise.id !== deleteTarget.exerciseId),
+        )
+      } else if (deleteTarget.type === 'set' && activeSession?.id) {
+        await mutateSessionExercises(user.uid, activeSession.id, (exercises) =>
+          exercises.map((exercise) =>
+            exercise.id === deleteTarget.exerciseId
+              ? {
+                  ...exercise,
+                  sets: exercise.sets.filter((setEntry) => setEntry.id !== deleteTarget.setId),
+                  updatedAt: nowIso(),
+                }
+              : exercise,
+          ),
+        )
+      }
+
       setDeleteTarget(null)
     })
+  }
+
+  function getDeleteModalContent() {
+    if (!deleteTarget) {
+      return { title: '', message: '' }
+    }
+
+    if (deleteTarget.type === 'exercise') {
+      return {
+        title: 'Delete exercise?',
+        message: `Are you sure you want to delete ${deleteTarget.exerciseName}?`,
+      }
+    }
+
+    if (deleteTarget.type === 'set') {
+      const finishedLabel = deleteTarget.setFinishedAt
+        ? ` logged on ${formatDateTime(deleteTarget.setFinishedAt)}`
+        : ''
+      return {
+        title: 'Delete set?',
+        message: `Are you sure you want to delete ${deleteTarget.setLabel} from ${deleteTarget.exerciseName}${finishedLabel}?`,
+      }
+    }
+
+    return {
+      title: 'Delete workout?',
+      message: `Are you sure you want to delete ${deleteTarget.workoutName} logged on ${formatDateTime(deleteTarget.startedAt)}?`,
+    }
   }
 
   useEffect(() => {
@@ -1215,10 +1264,10 @@ function App() {
                     isCollapsed={Boolean(collapsedExerciseMap[exercise.id])}
                     onToggleCollapse={() => toggleExerciseCollapse(exercise.id)}
                     onRenameExercise={renameExercise}
-                    onDeleteExercise={deleteExercise}
+                    onDeleteExercise={requestDeleteExercise}
                     onAddSet={addSet}
                     onUpdateSet={updateSet}
-                    onDeleteSet={deleteSet}
+                    onDeleteSet={requestDeleteSet}
                   />
                 ))}
               </section>
@@ -1235,18 +1284,15 @@ function App() {
           onSelectDay={setSelectedDay}
           sessionsByDay={sessionsByDay}
           disabled={isBusy}
-          onRequestDeleteWorkout={setDeleteTarget}
+          onRequestDeleteWorkout={requestDeleteWorkout}
         />
       )}
 
       {deleteTarget && (
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <section className="panel modal-panel">
-            <h3>Delete workout?</h3>
-            <p className="muted">
-              Are you sure you want to delete {deleteTarget.name} logged on{' '}
-              {formatDateTime(deleteTarget.startedAt)}?
-            </p>
+            <h3>{getDeleteModalContent().title}</h3>
+            <p className="muted">{getDeleteModalContent().message}</p>
             <div className="modal-actions">
               <button
                 type="button"
@@ -1259,7 +1305,7 @@ function App() {
               <button
                 type="button"
                 className="button-danger"
-                onClick={confirmDeleteWorkout}
+                onClick={confirmDeleteTarget}
                 disabled={isBusy}
               >
                 Yes

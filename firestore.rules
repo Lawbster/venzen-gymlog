@@ -1,8 +1,40 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isTimestampLike(value) {
+      return value is string && value.size() >= 20;
+    }
+
+    function hasValidSessionShape(data, userId, sessionId) {
+      return data.keys().hasOnly([
+        'id',
+        'userId',
+        'status',
+        'startedAt',
+        'endedAt',
+        'exercises',
+        'createdAt',
+        'updatedAt',
+      ])
+      && data.id == sessionId
+      && data.userId == userId
+      && data.status in ['active', 'ended']
+      && isTimestampLike(data.startedAt)
+      && (data.endedAt == null || isTimestampLike(data.endedAt))
+      && data.exercises is list
+      && isTimestampLike(data.createdAt)
+      && isTimestampLike(data.updatedAt);
+    }
+
     match /users/{userId}/sessions/{sessionId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && hasValidSessionShape(request.resource.data, userId, sessionId);
+      allow delete: if isOwner(userId);
     }
   }
 }
