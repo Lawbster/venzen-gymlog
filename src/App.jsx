@@ -49,12 +49,6 @@ function findExerciseId(name) {
   return exact?.id ?? null
 }
 
-const EXERCISE_CATEGORIES = Array.from(
-  new Set(
-    EXERCISE_CATALOG.map((exercise) => exercise.category).filter(Boolean),
-  ),
-).sort((left, right) => left.localeCompare(right))
-
 function SetRow({ setEntry, index, disabled, onDelete, onSave }) {
   const [isEditing, setIsEditing] = useState(false)
   const [weightKg, setWeightKg] = useState(String(setEntry.weightKg))
@@ -451,7 +445,9 @@ function HistoryPanel({
                   type="button"
                   className={`history-item-button ${selectedWorkout?.id === session.id ? 'selected' : ''}`}
                   onClick={() => {
-                    setSelectedWorkoutId(session.id)
+                    setSelectedWorkoutId((current) =>
+                      current === session.id ? null : session.id,
+                    )
                     setSelectedExerciseKey(null)
                   }}
                   disabled={disabled}
@@ -562,7 +558,6 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('log')
   const [exerciseInput, setExerciseInput] = useState('')
-  const [exerciseCategoryFilter, setExerciseCategoryFilter] = useState('all')
   const [collapsedExerciseMap, setCollapsedExerciseMap] = useState({})
 
   const [monthCursor, setMonthCursor] = useState(
@@ -630,16 +625,6 @@ function App() {
         new Date(left.createdAt || 0).getTime(),
     )
   }, [activeSession])
-
-  const filteredExercisePresets = useMemo(() => {
-    if (exerciseCategoryFilter === 'all') {
-      return EXERCISE_PRESETS
-    }
-
-    return EXERCISE_CATALOG.filter(
-      (exercise) => exercise.category === exerciseCategoryFilter,
-    ).map((exercise) => exercise.name)
-  }, [exerciseCategoryFilter])
 
   const sessionsByDay = useMemo(() => {
     const map = new Map()
@@ -998,20 +983,6 @@ function App() {
 
               <form className="exercise-add-form" onSubmit={handleAddExercise}>
                 <label htmlFor="exercise-search">Start new exercise</label>
-                <select
-                  className="exercise-filter-select"
-                  value={exerciseCategoryFilter}
-                  onChange={(event) => setExerciseCategoryFilter(event.target.value)}
-                  disabled={isBusy}
-                  aria-label="Filter exercises by category"
-                >
-                  <option value="all">All Categories</option>
-                  {EXERCISE_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
                 <input
                   id="exercise-search"
                   className="exercise-search-input"
@@ -1024,7 +995,7 @@ function App() {
                   required
                 />
                 <datalist id="exercise-presets">
-                  {filteredExercisePresets.map((exercise) => (
+                  {EXERCISE_PRESETS.map((exercise) => (
                     <option key={exercise} value={exercise} />
                   ))}
                 </datalist>

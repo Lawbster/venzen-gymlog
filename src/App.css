@@ -129,11 +129,6 @@
   max-width: 420px;
 }
 
-.exercise-filter-select {
-  width: 100%;
-  max-width: 420px;
-}
-
 .exercise-list {
   display: grid;
   gap: 12px;
