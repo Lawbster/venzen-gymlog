@@ -11,7 +11,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['venzensmalllogo.png'],
+      includeAssets: ['venzensmalllogov2.png'],
       manifest: {
         name: 'Venzen Gym Log',
         short_name: 'GymLog',
@@ -22,12 +22,12 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/venzensmalllogo.png',
+            src: '/venzensmalllogov2.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/venzensmalllogo.png',
+            src: '/venzensmalllogov2.png',
             sizes: '512x512',
             type: 'image/png',
           },
