@@ -178,6 +178,11 @@ async function clearWorkoutNotification() {
   notifications.forEach((notification) => notification.close())
 }
 
+function parseWeight(raw) {
+  if (!raw || !raw.trim()) return 0
+  return Number(raw.replace(',', '.'))
+}
+
 function findExerciseId(name) {
   const exact = EXERCISE_CATALOG.find(
     (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
@@ -248,9 +253,9 @@ function SetRow({ setEntry, index, isLatest, nowMs, disabled, onDelete, onSave }
   const elapsedSinceSetLabel = formatMmSs(getElapsedSeconds(finishedAt, nowMs))
 
   async function handleSave() {
-    const nextWeight = Number(weightKg)
+    const nextWeight = parseWeight(weightKg)
     const nextReps = Number(reps)
-    if (Number.isNaN(nextWeight) || Number.isNaN(nextReps)) {
+    if (Number.isNaN(nextWeight) || Number.isNaN(nextReps) || nextReps < 1) {
       return
     }
     await onSave(setEntry.id, nextWeight, nextReps)
@@ -271,12 +276,12 @@ function SetRow({ setEntry, index, isLatest, nowMs, disabled, onDelete, onSave }
       {isEditing ? (
         <div className="flex flex-wrap gap-2">
           <Input
-            type="number"
-            min="0"
-            step="0.5"
+            type="text"
+            inputMode="decimal"
             value={weightKg}
             onChange={(event) => setWeightKg(event.target.value)}
             disabled={disabled}
+            placeholder="kg"
             aria-label={`Set ${index + 1} weight`}
             className="w-24"
           />
@@ -353,9 +358,9 @@ function ExerciseCard({
 
   async function handleAddSet(event) {
     event.preventDefault()
-    const nextWeight = Number(weightKg)
+    const nextWeight = parseWeight(weightKg)
     const nextReps = Number(reps)
-    if (Number.isNaN(nextWeight) || Number.isNaN(nextReps)) {
+    if (Number.isNaN(nextWeight) || Number.isNaN(nextReps) || nextReps < 1) {
       return
     }
     await onAddSet(exercise.id, nextWeight, nextReps)
@@ -432,13 +437,11 @@ function ExerciseCard({
           </ul>
           <form className="flex flex-wrap gap-2 items-center mt-2" onSubmit={handleAddSet}>
             <Input
-              type="number"
-              min="0"
-              step="0.5"
+              type="text"
+              inputMode="decimal"
               placeholder="Weight (kg)"
               value={weightKg}
               onChange={(event) => setWeightKg(event.target.value)}
-              required
               disabled={disabled}
               className="w-28"
             />
@@ -761,9 +764,7 @@ function App() {
   const [renameDraft, setRenameDraft] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [nowMs, setNowMs] = useState(() => Date.now())
-  const [liveNotificationEnabled, setLiveNotificationEnabled] = useState(() =>
-    localStorage.getItem('venzen_live_notification') === '1',
-  )
+  const [installPrompt, setInstallPrompt] = useState(null)
 
   const [activeTab, setActiveTab] = useState('log')
   const [exerciseInput, setExerciseInput] = useState('')
@@ -926,24 +927,25 @@ function App() {
     }
   }
 
-  async function handleEnableLiveNotification() {
-    if (!hasNotificationSupport) {
-      return
+  useEffect(() => {
+    if (user && hasNotificationSupport && Notification.permission === 'default') {
+      Notification.requestPermission()
     }
+  }, [user])
 
-    if (Notification.permission === 'denied') {
-      setActionError('Browser notification permission is blocked.')
-      return
+  useEffect(() => {
+    function onBeforeInstall(event) {
+      event.preventDefault()
+      setInstallPrompt(event)
     }
+    window.addEventListener('beforeinstallprompt', onBeforeInstall)
+    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstall)
+  }, [])
 
-    if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission()
-      if (permission !== 'granted') {
-        return
-      }
-    }
-
-    setLiveNotificationEnabled(true)
+  async function handleInstallPwa() {
+    if (!installPrompt) return
+    await installPrompt.prompt()
+    setInstallPrompt(null)
   }
 
   async function handleAddExercise(event) {
@@ -1155,10 +1157,6 @@ function App() {
   }
 
   useEffect(() => {
-    localStorage.setItem('venzen_live_notification', liveNotificationEnabled ? '1' : '0')
-  }, [liveNotificationEnabled])
-
-  useEffect(() => {
     if (!activeSession?.id) {
       return undefined
     }
@@ -1177,12 +1175,12 @@ function App() {
 
     document.title = `${sessionElapsedLabel} - ${DEFAULT_APP_TITLE}`
 
-    if (liveNotificationEnabled) {
+    if (hasNotificationSupport && Notification.permission === 'granted') {
       upsertWorkoutNotification(sessionElapsedLabel)
     }
 
     return undefined
-  }, [activeSession, liveNotificationEnabled, sessionElapsedLabel])
+  }, [activeSession, sessionElapsedLabel])
 
   const deleteModalContent = getDeleteModalContent()
 
@@ -1290,6 +1288,22 @@ function App() {
         </div>
       </header>
 
+      {installPrompt && (
+        <Card className="shadow-[var(--panel-shadow)]">
+          <CardContent className="flex items-center justify-between gap-3">
+            <p className="text-sm">Install Venzen Gym Log for quick access from your home screen.</p>
+            <div className="flex gap-2 shrink-0">
+              <Button size="sm" onClick={handleInstallPwa}>
+                Install
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setInstallPrompt(null)}>
+                Dismiss
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="log">Logging</TabsTrigger>
@@ -1337,25 +1351,6 @@ function App() {
                     Started: {formatDateTime(activeSession.startedAt)}
                   </p>
                   <p className="font-bold text-foreground">Workout timer: {sessionElapsedLabel}</p>
-                  {hasNotificationSupport &&
-                    (!liveNotificationEnabled || Notification.permission !== 'granted') && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleEnableLiveNotification}
-                        disabled={isBusy}
-                        className="w-fit"
-                      >
-                        Enable live notification
-                      </Button>
-                    )}
-                  {hasNotificationSupport &&
-                    liveNotificationEnabled &&
-                    Notification.permission === 'granted' && (
-                      <p className="text-muted-foreground text-sm">
-                        Live notification enabled while workout is active.
-                      </p>
-                    )}
                   <Button
                     variant="destructive"
                     onClick={handleEndWorkout}
