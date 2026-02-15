@@ -28,12 +28,17 @@ export function formatMonthLabel(value) {
 }
 
 export function getCalendarGrid(monthDate) {
-  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
+  const year = monthDate.getFullYear()
+  const month = monthDate.getMonth()
+  const firstDay = new Date(year, month, 1)
   const firstWeekday = firstDay.getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7
+
   const gridStart = new Date(firstDay)
   gridStart.setDate(firstDay.getDate() - firstWeekday)
 
-  return Array.from({ length: 42 }, (_, index) => {
+  return Array.from({ length: totalCells }, (_, index) => {
     const value = new Date(gridStart)
     value.setDate(gridStart.getDate() + index)
     return value

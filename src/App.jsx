@@ -8,12 +8,51 @@ import {
   signOut,
 } from 'firebase/auth'
 import {
-  CgLogOut,
-  CgPen,
-  CgTrash,
-} from 'react-icons/cg'
-import { FcGoogle } from 'react-icons/fc'
-import { FaMedal } from 'react-icons/fa'
+  LogOut,
+  Medal,
+  Pencil,
+  Plus,
+  Trash2,
+  Check,
+  ChevronsUpDown,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, CardAction } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { cn } from '@/lib/utils'
 import './App.css'
 import { auth, isFirebaseConfigured } from './firebase'
 import { EXERCISE_CATALOG, EXERCISE_PRESETS } from './data/exercises'
@@ -35,6 +74,29 @@ import {
 const GOOGLE_PROVIDER = new GoogleAuthProvider()
 const DEFAULT_APP_TITLE = 'Venzen Gym Log'
 
+function GoogleIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" width="20" height="20">
+      <path
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+        fill="#34A853"
+      />
+      <path
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+        fill="#EA4335"
+      />
+    </svg>
+  )
+}
+
 function AppBrand({ theme = 'light', compact = false }) {
   const logoPath =
     theme === 'dark' ? '/VENZENLOGODARK.png' : '/VENZENLOGOLIGHT.png'
@@ -43,16 +105,16 @@ function AppBrand({ theme = 'light', compact = false }) {
     <img
       src={logoPath}
       alt="Venzen Gym Log"
-      className={`brand-logo ${compact ? 'brand-logo-compact' : ''}`}
+      className={compact ? 'block w-full max-w-[250px] h-auto' : 'block w-full max-w-[320px] h-auto'}
     />
   )
 }
 
 function AppFooter() {
   return (
-    <footer className="app-footer">
+    <footer className="mt-auto pt-2 text-center text-muted-foreground text-[0.66rem]">
       <a
-        className="app-footer-link"
+        className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
         href="https://venzen.no"
         target="_blank"
         rel="noreferrer"
@@ -94,7 +156,8 @@ async function upsertWorkoutNotification(elapsedLabel) {
     return
   }
 
-  const registration = await navigator.serviceWorker.ready
+  const registration = await navigator.serviceWorker.getRegistration()
+  if (!registration) return
   await registration.showNotification('Venzen Gym Log', {
     body: `Current workout - ${elapsedLabel}`,
     tag: 'active-workout',
@@ -109,7 +172,8 @@ async function clearWorkoutNotification() {
     return
   }
 
-  const registration = await navigator.serviceWorker.ready
+  const registration = await navigator.serviceWorker.getRegistration()
+  if (!registration) return
   const notifications = await registration.getNotifications({ tag: 'active-workout' })
   notifications.forEach((notification) => notification.close())
 }
@@ -119,6 +183,61 @@ function findExerciseId(name) {
     (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
   )
   return exact?.id ?? null
+}
+
+function ExerciseCombobox({ value, onChange, disabled }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          disabled={disabled}
+          className="w-full max-w-[420px] justify-between font-normal"
+        >
+          {value || 'Search or type exercise...'}
+          <ChevronsUpDown className="opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        <Command>
+          <CommandInput
+            placeholder="Search exercises..."
+            value={value}
+            onValueChange={onChange}
+          />
+          <CommandList>
+            <CommandEmpty>No exercise found. Press Add to use custom name.</CommandEmpty>
+            <CommandGroup>
+              {EXERCISE_PRESETS.filter(
+                (exercise) => exercise.toLowerCase().includes((value || '').toLowerCase()),
+              ).slice(0, 50).map((exercise) => (
+                <CommandItem
+                  key={exercise}
+                  value={exercise}
+                  onSelect={(selected) => {
+                    onChange(selected)
+                    setOpen(false)
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      'mr-2',
+                      value?.toLowerCase() === exercise.toLowerCase() ? 'opacity-100' : 'opacity-0',
+                    )}
+                  />
+                  {exercise}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 function SetRow({ setEntry, index, isLatest, nowMs, disabled, onDelete, onSave }) {
@@ -139,19 +258,19 @@ function SetRow({ setEntry, index, isLatest, nowMs, disabled, onDelete, onSave }
   }
 
   return (
-    <li className="set-row">
-      <div className="set-row-label">Set {index + 1}</div>
-      <div className="set-row-meta">
+    <li className="border border-border rounded-lg p-2 grid gap-2" style={{ background: 'var(--row-bg)' }}>
+      <div className="font-semibold">Set {index + 1}</div>
+      <div className="text-xs text-muted-foreground">
         Finished: {finishedAt ? formatDateTime(finishedAt) : 'Not available'}
       </div>
       {isLatest && (
-        <div className="set-row-meta set-row-timer">
+        <div className="text-[0.76rem] text-muted-foreground">
           Time since last set: {elapsedSinceSetLabel}
         </div>
       )}
       {isEditing ? (
-        <div className="set-row-form">
-          <input
+        <div className="flex flex-wrap gap-2">
+          <Input
             type="number"
             min="0"
             step="0.5"
@@ -159,8 +278,9 @@ function SetRow({ setEntry, index, isLatest, nowMs, disabled, onDelete, onSave }
             onChange={(event) => setWeightKg(event.target.value)}
             disabled={disabled}
             aria-label={`Set ${index + 1} weight`}
+            className="w-24"
           />
-          <input
+          <Input
             type="number"
             min="1"
             step="1"
@@ -168,46 +288,47 @@ function SetRow({ setEntry, index, isLatest, nowMs, disabled, onDelete, onSave }
             onChange={(event) => setReps(event.target.value)}
             disabled={disabled}
             aria-label={`Set ${index + 1} reps`}
+            className="w-24"
           />
-          <button type="button" onClick={handleSave} disabled={disabled}>
+          <Button size="sm" onClick={handleSave} disabled={disabled}>
             Save
-          </button>
-          <button
-            type="button"
-            className="button-subtle"
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setIsEditing(false)}
             disabled={disabled}
           >
             Cancel
-          </button>
+          </Button>
         </div>
       ) : (
         <>
-          <div className="set-row-values">
+          <div className="flex gap-3">
             <span>{setEntry.weightKg} kg</span>
             <span>{setEntry.reps} reps</span>
           </div>
-          <div className="set-row-actions">
-            <button
-              type="button"
-              className="button-subtle icon-button"
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="icon"
               onClick={() => setIsEditing(true)}
               disabled={disabled}
               aria-label={`Edit set ${index + 1}`}
               title={`Edit set ${index + 1}`}
             >
-              <CgPen aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className="button-danger icon-button"
+              <Pencil />
+            </Button>
+            <Button
+              variant="destructive"
+              size="icon"
               onClick={() => onDelete(setEntry.id)}
               disabled={disabled}
               aria-label={`Delete set ${index + 1}`}
               title={`Delete set ${index + 1}`}
             >
-              <CgTrash aria-hidden="true" />
-            </button>
+              <Trash2 />
+            </Button>
           </div>
         </>
       )}
@@ -255,32 +376,42 @@ function ExerciseCard({
   }
 
   return (
-    <article className="exercise-card exercise-card-collapsible" onClick={handleCardToggle}>
-      <header className="exercise-header">
-        <div className="exercise-title-block">
-          <h3>{exercise.name}</h3>
-          <p className="exercise-meta">
+    <article
+      className="border border-border rounded-xl bg-accent p-3 grid gap-2.5 cursor-pointer"
+      onClick={handleCardToggle}
+      tabIndex={0}
+      role="button"
+      aria-expanded={!isCollapsed}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button,input,select,textarea,label,a,form')) {
+          e.preventDefault()
+          onToggleCollapse()
+        }
+      }}
+    >
+      <header className="flex justify-between gap-3 items-start">
+        <div className="grid gap-1">
+          <h3 className="font-semibold">{exercise.name}</h3>
+          <p className="text-xs text-muted-foreground">
             Started: {startedAt ? formatDateTime(startedAt) : 'Not available'}
           </p>
         </div>
-        <div className="inline-button-row">
-          <button
-            type="button"
-            className="button-danger icon-button"
-            onClick={() => onDeleteExercise(exercise.id)}
-            disabled={disabled}
-            aria-label={`Delete exercise ${exercise.name}`}
-            title={`Delete exercise ${exercise.name}`}
-          >
-            <CgTrash aria-hidden="true" />
-          </button>
-        </div>
+        <Button
+          variant="destructive"
+          size="icon"
+          onClick={() => onDeleteExercise(exercise.id)}
+          disabled={disabled}
+          aria-label={`Delete exercise ${exercise.name}`}
+          title={`Delete exercise ${exercise.name}`}
+        >
+          <Trash2 />
+        </Button>
       </header>
       {!isCollapsed && (
         <>
-          <ul className="set-list">
+          <ul className="list-none p-0 m-0 grid gap-2">
             {exercise.sets.length === 0 && (
-              <li className="empty-message">No sets yet. Add your first set.</li>
+              <li className="text-muted-foreground">No sets yet. Add your first set.</li>
             )}
             {exercise.sets.map((setEntry, index) => (
               <SetRow
@@ -299,8 +430,8 @@ function ExerciseCard({
               />
             ))}
           </ul>
-          <form className="set-add-form" onSubmit={handleAddSet}>
-            <input
+          <form className="flex flex-wrap gap-2 items-center mt-2" onSubmit={handleAddSet}>
+            <Input
               type="number"
               min="0"
               step="0.5"
@@ -309,8 +440,9 @@ function ExerciseCard({
               onChange={(event) => setWeightKg(event.target.value)}
               required
               disabled={disabled}
+              className="w-28"
             />
-            <input
+            <Input
               type="number"
               min="1"
               step="1"
@@ -319,13 +451,12 @@ function ExerciseCard({
               onChange={(event) => setReps(event.target.value)}
               required
               disabled={disabled}
+              className="w-20"
             />
-            <button
-              type="submit"
-              disabled={disabled}
-            >
+            <Button type="submit" disabled={disabled} size="sm">
+              <Plus className="size-4" />
               Add Set
-            </button>
+            </Button>
           </form>
         </>
       )}
@@ -379,13 +510,12 @@ function HistoryPanel({
 
   return (
     <section className="history-grid">
-      <article className="panel">
-        <header className="panel-header">
-          <h2>History</h2>
-          <div className="inline-button-row">
-            <button
-              type="button"
-              className="button-subtle"
+      <Card className="shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
+        <CardContent>
+          <div className="flex justify-between items-center gap-2 mb-4">
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() =>
                 onMonthChange(
                   new Date(
@@ -397,11 +527,11 @@ function HistoryPanel({
               }
             >
               Prev
-            </button>
-            <strong>{formatMonthLabel(monthCursor)}</strong>
-            <button
-              type="button"
-              className="button-subtle"
+            </Button>
+            <strong className="text-sm">{formatMonthLabel(monthCursor)}</strong>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() =>
                 onMonthChange(
                   new Date(
@@ -413,180 +543,199 @@ function HistoryPanel({
               }
             >
               Next
-            </button>
+            </Button>
           </div>
-        </header>
 
-        <div className="calendar-weekdays">
-          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label) => (
-            <span key={label}>{label}</span>
-          ))}
-        </div>
+          <div className="calendar-weekdays">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label) => (
+              <span key={label}>{label}</span>
+            ))}
+          </div>
 
-        <div className="calendar-grid">
-          {calendarDays.map((date) => {
-            const dayKey = toDayKey(date)
-            const count = sessionsByDay.get(dayKey)?.length || 0
-            const isCurrentMonth = date.getMonth() === monthCursor.getMonth()
-            const isSelected = dayKey === selectedDay
-            const countLabel = count > 4 ? '4+' : String(count)
-            const ariaLabel = `${date.toLocaleDateString([], {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}: ${count} workout${count === 1 ? '' : 's'}`
-
-            return (
-              <button
-                key={dayKey}
-                type="button"
-                className={`calendar-day ${isCurrentMonth ? '' : 'calendar-day-muted'} ${isSelected ? 'calendar-day-selected' : ''}`}
-                onClick={() => {
-                  setSelectedWorkoutId(null)
-                  setSelectedExerciseKey(null)
-                  onSelectDay(dayKey)
-                }}
-                aria-label={ariaLabel}
-              >
-                <span className="calendar-day-date">{date.getDate()}</span>
-                {count > 0 && (
-                  <span className="calendar-medal-indicator" aria-hidden="true">
-                    <FaMedal className="calendar-medal-icon" />
-                    <span className="calendar-medal-count">{countLabel}</span>
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </article>
-
-      <article className="panel">
-        <h2>Day</h2>
-        <p className="muted">
-          {selectedDay} - {selectedDaySessionsSorted.length} workout(s)
-        </p>
-        {selectedDaySessionsSorted.length > 0 && (
-          <ul className="history-workout-list">
-            {selectedDaySessionsSorted.map((session, index) => {
-              const workoutName =
-                typeof session.name === 'string' && session.name.trim()
-                  ? session.name.trim()
-                  : `Workout ${index + 1}`
+          <div className="calendar-grid">
+            {calendarDays.map((date) => {
+              const dayKey = toDayKey(date)
+              const count = sessionsByDay.get(dayKey)?.length || 0
+              const isCurrentMonth = date.getMonth() === monthCursor.getMonth()
+              const isSelected = dayKey === selectedDay
+              const countLabel = count > 4 ? '4+' : String(count)
+              const ariaLabel = `${date.toLocaleDateString([], {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}: ${count} workout${count === 1 ? '' : 's'}`
 
               return (
-                <li key={session.id} className="history-workout-row">
                 <button
+                  key={dayKey}
                   type="button"
-                  className={`history-item-button ${selectedWorkout?.id === session.id ? 'selected' : ''}`}
+                  className={cn(
+                    'calendar-day',
+                    !isCurrentMonth && 'calendar-day-muted',
+                    isSelected && 'calendar-day-selected',
+                  )}
                   onClick={() => {
-                    setSelectedWorkoutId((current) =>
-                      current === session.id ? null : session.id,
-                    )
+                    setSelectedWorkoutId(null)
                     setSelectedExerciseKey(null)
+                    onSelectDay(dayKey)
                   }}
-                  disabled={disabled}
+                  aria-label={ariaLabel}
+                  aria-pressed={isSelected}
                 >
-                  <span>{workoutName}</span>
-                  <small>{formatDateTime(session.startedAt)}</small>
+                  <span className="calendar-day-date">{date.getDate()}</span>
+                  {count > 0 && (
+                    <span className="calendar-medal-indicator" aria-hidden="true">
+                      <Medal className="calendar-medal-icon" />
+                      <span className="calendar-medal-count">{countLabel}</span>
+                    </span>
+                  )}
                 </button>
-                <div className="history-workout-actions">
-                  <button
-                    type="button"
-                    className="button-subtle icon-button"
-                    onClick={() =>
-                      onRequestRenameWorkout({
-                        id: session.id,
-                        name: workoutName,
-                      })
-                    }
-                    disabled={disabled}
-                    aria-label={`Rename ${workoutName}`}
-                    title={`Rename ${workoutName}`}
-                  >
-                    <CgPen aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="button-danger icon-button"
-                    onClick={() =>
-                      onRequestDeleteWorkout({
-                        id: session.id,
-                        name: workoutName,
-                        startedAt: session.startedAt,
-                      })
-                    }
-                    disabled={disabled}
-                    aria-label={`Delete ${workoutName}`}
-                    title={`Delete ${workoutName}`}
-                  >
-                    <CgTrash aria-hidden="true" />
-                  </button>
-                </div>
-                </li>
               )
             })}
-          </ul>
-        )}
-        {!selectedWorkout && selectedDaySessionsSorted.length > 0 && (
-          <p className="empty-message">Select a workout to view exercises.</p>
-        )}
-        {selectedWorkout && drilldownExercises.length === 0 && (
-          <p className="empty-message">No exercises logged for this workout.</p>
-        )}
-        {selectedWorkout && (
-          <ul className="history-exercise-list">
-            {drilldownExercises.map((entry) => {
-              const key = `${entry.sessionId}:${entry.exercise.id}`
-              return (
-                <li key={key}>
-                  <button
-                    type="button"
-                    className={`history-item-button ${selectedExerciseKey === key ? 'selected' : ''}`}
-                    onClick={() => setSelectedExerciseKey(key)}
-                  >
-                    <span>{entry.exercise.name}</span>
-                    <small>{formatDateTime(entry.sessionStartedAt)}</small>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </article>
+          </div>
+        </CardContent>
+      </Card>
 
-      <article className="panel">
-        <h2>Sets</h2>
-        {!selectedExercise && (
-          <p className="empty-message">
-            Select an exercise to inspect logged sets.
+      <Card className="shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
+        <CardHeader>
+          <CardTitle>Day</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <p className="text-muted-foreground text-sm">
+            {selectedDay} - {selectedDaySessionsSorted.length} workout(s)
           </p>
-        )}
-        {selectedExercise && (
-          <>
-            <p>
-              <strong>{selectedExercise.exercise.name}</strong>
-            </p>
-            <ul className="set-list readonly">
-              {selectedExercise.exercise.sets.map((setEntry, index) => (
-                <li key={setEntry.id} className="set-row">
-                  <div className="set-row-label">Set {index + 1}</div>
-                  <div className="set-row-meta">
-                    Finished:{' '}
-                    {setEntry.finishedAt || setEntry.createdAt
-                      ? formatDateTime(setEntry.finishedAt || setEntry.createdAt)
-                      : 'Not available'}
-                  </div>
-                  <div className="set-row-values">
-                    <span>{setEntry.weightKg} kg</span>
-                    <span>{setEntry.reps} reps</span>
-                  </div>
-                </li>
-              ))}
+          {selectedDaySessionsSorted.length > 0 && (
+            <ul className="list-none m-0 p-0 grid gap-2">
+              {selectedDaySessionsSorted.map((session, index) => {
+                const workoutName =
+                  typeof session.name === 'string' && session.name.trim()
+                    ? session.name.trim()
+                    : `Workout ${index + 1}`
+
+                return (
+                  <li key={session.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-stretch">
+                    <button
+                      type="button"
+                      className={cn(
+                        'history-item-button',
+                        selectedWorkout?.id === session.id && 'selected',
+                      )}
+                      onClick={() => {
+                        setSelectedWorkoutId((current) =>
+                          current === session.id ? null : session.id,
+                        )
+                        setSelectedExerciseKey(null)
+                      }}
+                      disabled={disabled}
+                    >
+                      <span>{workoutName}</span>
+                      <small>{formatDateTime(session.startedAt)}</small>
+                    </button>
+                    <div className="inline-flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        onClick={() =>
+                          onRequestRenameWorkout({
+                            id: session.id,
+                            name: workoutName,
+                          })
+                        }
+                        disabled={disabled}
+                        aria-label={`Rename ${workoutName}`}
+                        title={`Rename ${workoutName}`}
+                      >
+                        <Pencil />
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="icon"
+                        onClick={() =>
+                          onRequestDeleteWorkout({
+                            id: session.id,
+                            name: workoutName,
+                            startedAt: session.startedAt,
+                          })
+                        }
+                        disabled={disabled}
+                        aria-label={`Delete ${workoutName}`}
+                        title={`Delete ${workoutName}`}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
-          </>
-        )}
-      </article>
+          )}
+          {!selectedWorkout && selectedDaySessionsSorted.length > 0 && (
+            <p className="text-muted-foreground text-sm">Select a workout to view exercises.</p>
+          )}
+          {selectedWorkout && drilldownExercises.length === 0 && (
+            <p className="text-muted-foreground text-sm">No exercises logged for this workout.</p>
+          )}
+          {selectedWorkout && (
+            <ul className="list-none m-0 p-0 grid gap-2">
+              {drilldownExercises.map((entry) => {
+                const key = `${entry.sessionId}:${entry.exercise.id}`
+                return (
+                  <li key={key}>
+                    <button
+                      type="button"
+                      className={cn(
+                        'history-item-button',
+                        selectedExerciseKey === key && 'selected',
+                      )}
+                      onClick={() => setSelectedExerciseKey(key)}
+                    >
+                      <span>{entry.exercise.name}</span>
+                      <small>{formatDateTime(entry.sessionStartedAt)}</small>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
+        <CardHeader>
+          <CardTitle>Sets</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!selectedExercise && (
+            <p className="text-muted-foreground text-sm">
+              Select an exercise to inspect logged sets.
+            </p>
+          )}
+          {selectedExercise && (
+            <>
+              <p className="mb-3">
+                <strong>{selectedExercise.exercise.name}</strong>
+              </p>
+              <ul className="list-none p-0 m-0 grid gap-2">
+                {selectedExercise.exercise.sets.map((setEntry, index) => (
+                  <li key={setEntry.id} className="border border-border rounded-lg p-2 grid gap-1" style={{ background: 'var(--row-bg)' }}>
+                    <div className="font-semibold">Set {index + 1}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Finished:{' '}
+                      {setEntry.finishedAt || setEntry.createdAt
+                        ? formatDateTime(setEntry.finishedAt || setEntry.createdAt)
+                        : 'Not available'}
+                    </div>
+                    <div className="flex gap-3">
+                      <span>{setEntry.weightKg} kg</span>
+                      <span>{setEntry.reps} reps</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </section>
   )
 }
@@ -608,6 +757,9 @@ function App() {
   const [actionError, setActionError] = useState('')
   const [isBusy, setIsBusy] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [renameTarget, setRenameTarget] = useState(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [successMessage, setSuccessMessage] = useState('')
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [liveNotificationEnabled, setLiveNotificationEnabled] = useState(() =>
     localStorage.getItem('venzen_live_notification') === '1',
@@ -749,6 +901,7 @@ function App() {
     }
     await runAction(async () => {
       await startWorkoutSession(user.uid)
+      setSuccessMessage('')
       setActiveTab('log')
     })
   }
@@ -757,13 +910,20 @@ function App() {
     if (!user || !activeSession) {
       return
     }
-    await runAction(async () => {
+    const workoutName =
+      typeof activeSession.name === 'string' && activeSession.name.trim()
+        ? activeSession.name.trim()
+        : 'Workout'
+    const ok = await runAction(async () => {
       await updateWorkoutSession(user.uid, activeSession.id, {
         status: 'ended',
         endedAt: nowIso(),
       })
       await clearWorkoutNotification()
     })
+    if (ok) {
+      setSuccessMessage(`${workoutName} logged successfully! Go to History to see your completed workouts.`)
+    }
   }
 
   async function handleEnableLiveNotification() {
@@ -914,23 +1074,25 @@ function App() {
     })
   }
 
-  async function requestRenameWorkout(targetWorkout) {
-    if (!user) {
+  function openRenameDialog(targetWorkout) {
+    setRenameTarget(targetWorkout)
+    setRenameDraft(targetWorkout.name)
+  }
+
+  async function confirmRename() {
+    if (!user || !renameTarget) {
       return
     }
 
-    const draft = window.prompt('Rename workout', targetWorkout.name)
-    if (draft == null) {
-      return
-    }
-
-    const nextName = draft.trim()
-    if (!nextName || nextName === targetWorkout.name) {
+    const nextName = renameDraft.trim()
+    if (!nextName || nextName === renameTarget.name) {
+      setRenameTarget(null)
       return
     }
 
     await runAction(async () => {
-      await updateWorkoutSession(user.uid, targetWorkout.id, { name: nextName })
+      await updateWorkoutSession(user.uid, renameTarget.id, { name: nextName })
+      setRenameTarget(null)
     })
   }
 
@@ -1022,17 +1184,21 @@ function App() {
     return undefined
   }, [activeSession, liveNotificationEnabled, sessionElapsedLabel])
 
+  const deleteModalContent = getDeleteModalContent()
+
   if (!isFirebaseConfigured) {
     return (
-      <main className="app-shell">
-        <section className="panel">
-          <AppBrand theme={theme} />
-          <p>Firebase is not configured yet.</p>
-          <p className="muted">
-            Add the required keys to <code>.env.local</code> using
-            <code>.env.example</code> as template, then restart the dev server.
-          </p>
-        </section>
+      <main className="mx-auto max-w-[1100px] min-h-dvh px-4 py-6 pb-10 flex flex-col gap-4">
+        <Card className="shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
+          <CardContent>
+            <AppBrand theme={theme} />
+            <p className="mt-3">Firebase is not configured yet.</p>
+            <p className="text-muted-foreground mt-1">
+              Add the required keys to <code>.env.local</code> using{' '}
+              <code>.env.example</code> as template, then restart the dev server.
+            </p>
+          </CardContent>
+        </Card>
         <AppFooter />
       </main>
     )
@@ -1040,10 +1206,12 @@ function App() {
 
   if (authLoading) {
     return (
-      <main className="app-shell">
-        <section className="panel">
-          <p>Checking auth session...</p>
-        </section>
+      <main className="mx-auto max-w-[1100px] min-h-dvh px-4 py-6 pb-10 flex flex-col gap-4">
+        <Card className="shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
+          <CardContent>
+            <p>Checking auth session...</p>
+          </CardContent>
+        </Card>
         <AppFooter />
       </main>
     )
@@ -1051,248 +1219,252 @@ function App() {
 
   if (!user) {
     return (
-      <main className="app-shell">
-        <section className="panel auth-panel">
-          <AppBrand theme={theme} />
-          <p>You need a google account in order to use this application</p>
-          <div className="auth-action-list">
-            <button
-              type="button"
-              className="auth-google-button"
-              onClick={handleSignIn}
-              disabled={isBusy}
-            >
-              <FcGoogle aria-hidden="true" />
-              <span>Log in with Google</span>
-            </button>
-            <button
-              type="button"
-              className="button-subtle auth-google-button"
-              onClick={handleCreateGoogleAccount}
-              disabled={isBusy}
-            >
-              <FcGoogle aria-hidden="true" />
-              <span>Create new account</span>
-            </button>
-          </div>
-          {(authError || actionError) && (
-            <p className="error">{authError || actionError}</p>
-          )}
-        </section>
+      <main className="mx-auto max-w-[1100px] min-h-dvh px-4 py-6 pb-10 flex flex-col gap-4">
+        <Card className="max-w-[420px] mx-auto mt-[8vh] shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
+          <CardContent className="grid gap-3">
+            <AppBrand theme={theme} />
+            <p>You need a google account in order to use this application</p>
+            <div className="grid gap-2">
+              <Button
+                onClick={handleSignIn}
+                disabled={isBusy}
+                className="w-full justify-center gap-2"
+              >
+                <GoogleIcon />
+                <span>Log in with Google</span>
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={handleCreateGoogleAccount}
+                disabled={isBusy}
+                className="w-full justify-center gap-2"
+              >
+                <GoogleIcon />
+                <span>Create new account</span>
+              </Button>
+            </div>
+            {(authError || actionError) && (
+              <p className="text-destructive">{authError || actionError}</p>
+            )}
+          </CardContent>
+        </Card>
         <AppFooter />
       </main>
     )
   }
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="topbar-brand">
+    <main className="mx-auto max-w-[1100px] min-h-dvh px-4 py-6 pb-10 flex flex-col gap-4">
+      <header className="flex justify-between gap-3 items-start max-sm:flex-col max-sm:items-stretch">
+        <div className="grid gap-2">
           <AppBrand theme={theme} compact />
-          <p className="muted signed-in-text">Signed in as {user.email}</p>
+          <p className="text-muted-foreground text-[0.8rem]">Signed in as {user.email}</p>
         </div>
-        <div className="topbar-actions">
-          <div className="theme-text-switcher" role="group" aria-label="Theme mode">
-            <button
-              type="button"
-              className={`theme-text-button ${theme === 'light' ? 'active' : ''}`}
-              onClick={() => setTheme('light')}
-            >
-              Light
-            </button>
-            <span>-</span>
-            <button
-              type="button"
-              className={`theme-text-button ${theme === 'queen' ? 'active' : ''}`}
-              onClick={() => setTheme('queen')}
-            >
-              Queen
-            </button>
-            <span>-</span>
-            <button
-              type="button"
-              className={`theme-text-button ${theme === 'dark' ? 'active' : ''}`}
-              onClick={() => setTheme('dark')}
-            >
-              Dark
-            </button>
+        <div className="inline-flex flex-col items-end gap-1.5">
+          <div className="inline-flex gap-1 items-center text-muted-foreground text-sm" role="group" aria-label="Theme mode">
+            {['light', 'queen', 'dark'].map((t, i) => (
+              <span key={t} className="contents">
+                {i > 0 && <span>-</span>}
+                <button
+                  type="button"
+                  className={cn(
+                    'appearance-none border-0 bg-transparent p-0 cursor-pointer text-sm underline',
+                    theme === t ? 'text-foreground font-bold' : 'text-muted-foreground',
+                  )}
+                  onClick={() => setTheme(t)}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              </span>
+            ))}
           </div>
-          <button
-            type="button"
-            className="button-subtle icon-button"
+          <Button
+            variant="secondary"
+            size="icon"
             onClick={handleSignOut}
             aria-label="Sign out"
             title="Sign out"
           >
-            <CgLogOut aria-hidden="true" />
-          </button>
+            <LogOut />
+          </Button>
         </div>
       </header>
 
-      <nav className="tabs">
-        <button
-          type="button"
-          className={activeTab === 'log' ? 'active' : ''}
-          onClick={() => setActiveTab('log')}
-        >
-          Logging
-        </button>
-        <button
-          type="button"
-          className={activeTab === 'history' ? 'active' : ''}
-          onClick={() => setActiveTab('history')}
-        >
-          History
-        </button>
-      </nav>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="log">Logging</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
 
-      {(sessionsError || actionError) && (
-        <section className="panel">
-          <p className="error">{sessionsError || actionError}</p>
-        </section>
-      )}
+        {(sessionsError || actionError) && (
+          <Card className="shadow-[var(--panel-shadow)]">
+            <CardContent>
+              <p className="text-destructive">{sessionsError || actionError}</p>
+            </CardContent>
+          </Card>
+        )}
 
-      {activeTab === 'log' && (
-        <section className="panel">
-          <header className="panel-header">
-            <h2>Workout Session</h2>
-            {!activeSession && (
-              <button type="button" onClick={handleStartWorkout} disabled={isBusy}>
-                Start Workout
-              </button>
-            )}
-          </header>
+        <TabsContent value="log">
+          <Card className="shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
+            <CardHeader>
+              <CardTitle>Workout Session</CardTitle>
+              {!activeSession && (
+                <CardAction>
+                  <Button onClick={handleStartWorkout} disabled={isBusy}>
+                    Start Workout
+                  </Button>
+                </CardAction>
+              )}
+            </CardHeader>
 
-          {sessionsLoading && <p>Loading sessions...</p>}
+            <CardContent>
+              {sessionsLoading && <p>Loading sessions...</p>}
 
-          {!sessionsLoading && !activeSession && (
-            <p className="empty-message">
-              No active workout. Start one to begin logging exercises and sets.
-            </p>
-          )}
+              {!sessionsLoading && !activeSession && (
+                <>
+                  {successMessage && (
+                    <p className="text-primary font-medium">{successMessage}</p>
+                  )}
+                  <p className="text-muted-foreground">
+                    No active workout. Start one to begin logging exercises and sets.
+                  </p>
+                </>
+              )}
 
-          {activeSession && (
-            <>
-              <p className="muted">
-                Started: {formatDateTime(activeSession.startedAt)}
-              </p>
-              <p className="session-timer">Workout timer: {sessionElapsedLabel}</p>
-              {hasNotificationSupport &&
-                (!liveNotificationEnabled || Notification.permission !== 'granted') && (
-                  <button
-                    type="button"
-                    className="button-subtle session-live-notify"
-                    onClick={handleEnableLiveNotification}
+              {activeSession && (
+                <div className="grid gap-3">
+                  <p className="text-muted-foreground text-sm">
+                    Started: {formatDateTime(activeSession.startedAt)}
+                  </p>
+                  <p className="font-bold text-foreground">Workout timer: {sessionElapsedLabel}</p>
+                  {hasNotificationSupport &&
+                    (!liveNotificationEnabled || Notification.permission !== 'granted') && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleEnableLiveNotification}
+                        disabled={isBusy}
+                        className="w-fit"
+                      >
+                        Enable live notification
+                      </Button>
+                    )}
+                  {hasNotificationSupport &&
+                    liveNotificationEnabled &&
+                    Notification.permission === 'granted' && (
+                      <p className="text-muted-foreground text-sm">
+                        Live notification enabled while workout is active.
+                      </p>
+                    )}
+                  <Button
+                    variant="destructive"
+                    onClick={handleEndWorkout}
                     disabled={isBusy}
+                    className="w-full max-w-[420px]"
                   >
-                    Enable live notification
-                  </button>
-                )}
-              {hasNotificationSupport &&
-                liveNotificationEnabled &&
-                Notification.permission === 'granted' && (
-                  <p className="muted session-live-notify-note">
-                    Live notification enabled while workout is active.
-                  </p>
-                )}
-              <button
-                type="button"
-                className="button-danger session-end-button"
-                onClick={handleEndWorkout}
-                disabled={isBusy}
-              >
-                End Workout
-              </button>
+                    End Workout
+                  </Button>
 
-              <form className="exercise-add-form" onSubmit={handleAddExercise}>
-                <label htmlFor="exercise-search">Start new exercise</label>
-                <input
-                  id="exercise-search"
-                  className="exercise-search-input"
-                  type="text"
-                  list="exercise-presets"
-                  placeholder="Search or type custom exercise"
-                  value={exerciseInput}
-                  onChange={(event) => setExerciseInput(event.target.value)}
-                  disabled={isBusy}
-                  required
-                />
-                <datalist id="exercise-presets">
-                  {EXERCISE_PRESETS.map((exercise) => (
-                    <option key={exercise} value={exercise} />
-                  ))}
-                </datalist>
-                <button type="submit" disabled={isBusy}>
-                  Add Exercise
-                </button>
-              </form>
+                  <form className="flex flex-wrap gap-2 items-end mt-2" onSubmit={handleAddExercise}>
+                    <div className="grid gap-1.5 w-full">
+                      <Label htmlFor="exercise-search">Start new exercise</Label>
+                      <ExerciseCombobox
+                        value={exerciseInput}
+                        onChange={setExerciseInput}
+                        disabled={isBusy}
+                      />
+                    </div>
+                    <Button type="submit" disabled={isBusy}>
+                      <Plus className="size-4" />
+                      Add Exercise
+                    </Button>
+                  </form>
 
-              <section className="exercise-list">
-                {activeSession.exercises.length === 0 && (
-                  <p className="empty-message">
-                    Add an exercise to start logging sets.
-                  </p>
-                )}
+                  <section className="grid gap-3 mt-2">
+                    {activeSession.exercises.length === 0 && (
+                      <p className="text-muted-foreground">
+                        Add an exercise to start logging sets.
+                      </p>
+                    )}
 
-                {sortedActiveExercises.map((exercise) => (
-                  <ExerciseCard
-                    key={exercise.id}
-                    exercise={exercise}
-                    nowMs={nowMs}
-                    disabled={isBusy}
-                    isCollapsed={Boolean(collapsedExerciseMap[exercise.id])}
-                    onToggleCollapse={() => toggleExerciseCollapse(exercise.id)}
-                    onDeleteExercise={requestDeleteExercise}
-                    onAddSet={addSet}
-                    onUpdateSet={updateSet}
-                    onDeleteSet={requestDeleteSet}
-                  />
-                ))}
-              </section>
-            </>
-          )}
-        </section>
-      )}
+                    {sortedActiveExercises.map((exercise) => (
+                      <ExerciseCard
+                        key={exercise.id}
+                        exercise={exercise}
+                        nowMs={nowMs}
+                        disabled={isBusy}
+                        isCollapsed={Boolean(collapsedExerciseMap[exercise.id])}
+                        onToggleCollapse={() => toggleExerciseCollapse(exercise.id)}
+                        onDeleteExercise={requestDeleteExercise}
+                        onAddSet={addSet}
+                        onUpdateSet={updateSet}
+                        onDeleteSet={requestDeleteSet}
+                      />
+                    ))}
+                  </section>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {activeTab === 'history' && (
-        <HistoryPanel
-          monthCursor={monthCursor}
-          onMonthChange={setMonthCursor}
-          selectedDay={selectedDay}
-          onSelectDay={setSelectedDay}
-          sessionsByDay={sessionsByDay}
-          disabled={isBusy}
-          onRequestRenameWorkout={requestRenameWorkout}
-          onRequestDeleteWorkout={requestDeleteWorkout}
-        />
-      )}
+        <TabsContent value="history">
+          <HistoryPanel
+            monthCursor={monthCursor}
+            onMonthChange={setMonthCursor}
+            selectedDay={selectedDay}
+            onSelectDay={setSelectedDay}
+            sessionsByDay={sessionsByDay}
+            disabled={isBusy}
+            onRequestRenameWorkout={openRenameDialog}
+            onRequestDeleteWorkout={requestDeleteWorkout}
+          />
+        </TabsContent>
+      </Tabs>
 
-      {deleteTarget && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true">
-          <section className="panel modal-panel">
-            <h3>{getDeleteModalContent().title}</h3>
-            <p className="muted">{getDeleteModalContent().message}</p>
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="button-subtle"
-                onClick={() => setDeleteTarget(null)}
-                disabled={isBusy}
-              >
-                No
-              </button>
-              <button
-                type="button"
-                className="button-danger"
-                onClick={confirmDeleteTarget}
-                disabled={isBusy}
-              >
-                Yes
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{deleteModalContent.title}</AlertDialogTitle>
+            <AlertDialogDescription>{deleteModalContent.message}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBusy}>No</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDeleteTarget} disabled={isBusy}>
+              Yes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Rename workout dialog */}
+      <Dialog open={!!renameTarget} onOpenChange={(open) => { if (!open) setRenameTarget(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename workout</DialogTitle>
+            <DialogDescription>Enter a new name for this workout.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="rename-input">Workout name</Label>
+            <Input
+              id="rename-input"
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmRename() }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setRenameTarget(null)} disabled={isBusy}>
+              Cancel
+            </Button>
+            <Button onClick={confirmRename} disabled={isBusy || !renameDraft.trim()}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AppFooter />
     </main>
@@ -1300,4 +1472,3 @@ function App() {
 }
 
 export default App
-

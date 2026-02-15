@@ -1,78 +1,150 @@
-:root {
-  --green-700: #1e5f3c;
-  --green-900: #111f12;
-  --surface: #f2f5ef;
-  --line: #d5decf;
-  --ink: #182013;
-  --muted: #5d6b56;
-  --danger: #ab3b3b;
-  --error: #a52222;
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: "Segoe UI", "Calibri", sans-serif;
+}
+
+/* ── Light theme (default) ── */
+:root {
+  --radius: 0.5rem;
+
+  --background: #f2f5ef;
+  --foreground: #182013;
+  --card: #ffffffd9;
+  --card-foreground: #182013;
+  --popover: #ffffff;
+  --popover-foreground: #182013;
+  --primary: #1e5f3c;
+  --primary-foreground: #ffffff;
+  --secondary: #ffffff;
+  --secondary-foreground: #182013;
+  --muted: #f2f5ef;
+  --muted-foreground: #5d6b56;
+  --accent: #fbfcf8;
+  --accent-foreground: #182013;
+  --destructive: #ab3b3b;
+  --border: #d5decf;
+  --input: #d5decf;
+  --ring: #1e5f3c;
+
+  --chart-1: #1e5f3c;
+  --chart-2: #5d6b56;
+  --chart-3: #ab3b3b;
+  --chart-4: #d5decf;
+  --chart-5: #fbfcf8;
+
+  --sidebar: #f2f5ef;
+  --sidebar-foreground: #182013;
+  --sidebar-primary: #1e5f3c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fbfcf8;
+  --sidebar-accent-foreground: #182013;
+  --sidebar-border: #d5decf;
+  --sidebar-ring: #1e5f3c;
+
+  /* Custom app variables */
   --bg-gradient:
     radial-gradient(circle at 15% 10%, #dfead5 0, #dfead500 34%),
     radial-gradient(circle at 85% 15%, #f1dfcc 0, #f1dfcc00 38%),
     linear-gradient(170deg, #f7faf5, #ecf2e7 70%);
-
-  --panel-bg: #ffffffd9;
   --panel-shadow: 0 8px 25px rgba(37, 53, 29, 0.06);
-  --tab-inactive-bg: #ffffffcc;
-  --tab-inactive-text: #000;
-  --tab-active-bg: var(--green-700);
-  --tab-active-text: #fff;
-  --subtle-bg: #fff;
-  --subtle-text: var(--ink);
-  --subtle-border: var(--line);
-  --card-bg: #fbfcf8;
-  --row-bg: #fff;
-  --calendar-day-bg: #fff;
-  --calendar-date-text: var(--muted);
+  --row-bg: #ffffff;
+  --calendar-day-bg: #ffffff;
+  --calendar-date-text: #5d6b56;
   --calendar-medal-bg: #eff5ea;
   --calendar-medal-border: #b9cab0;
-  --calendar-medal-icon: var(--green-700);
-  --calendar-medal-text: var(--ink);
-  --day-item-bg: #fff;
-  --day-item-text: #000;
-  --day-item-border: var(--line);
-  --day-item-selected: var(--green-700);
-  --input-bg: #fff;
-  --input-text: var(--ink);
-  --code-bg: #eef3ea;
-
-  font-family: 'Segoe UI', 'Calibri', sans-serif;
-  line-height: 1.4;
-  font-weight: 400;
-  color: var(--ink);
-  background: var(--surface);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  --calendar-medal-icon: #1e5f3c;
+  --calendar-medal-text: #182013;
+  --day-item-bg: #ffffff;
+  --day-item-text: #000000;
+  --day-item-border: #d5decf;
+  --day-item-selected: #1e5f3c;
+  --error: #a52222;
 }
 
-[data-theme='dark'] {
-  --green-700: #00703c;
-  --surface: #252526;
-  --line: #5d6064;
-  --ink: #f2f3f2;
-  --muted: #c4c7c4;
-  --danger: #bc4a58;
-  --error: #ff9b9b;
+/* ── Dark theme ── */
+[data-theme="dark"] {
+  --background: #252526;
+  --foreground: #f2f3f2;
+  --card: #2d2f32eb;
+  --card-foreground: #f2f3f2;
+  --popover: #2d2f32;
+  --popover-foreground: #f2f3f2;
+  --primary: #00703c;
+  --primary-foreground: #ffffff;
+  --secondary: #ececec;
+  --secondary-foreground: #000000;
+  --muted: #2a2c2f;
+  --muted-foreground: #c4c7c4;
+  --accent: #33363a;
+  --accent-foreground: #f2f3f2;
+  --destructive: #bc4a58;
+  --border: #5d6064;
+  --input: #5d6064;
+  --ring: #00703c;
+
+  --chart-1: #00703c;
+  --chart-2: #c4c7c4;
+  --chart-3: #bc4a58;
+  --chart-4: #5d6064;
+  --chart-5: #33363a;
+
+  --sidebar: #252526;
+  --sidebar-foreground: #f2f3f2;
+  --sidebar-primary: #00703c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #33363a;
+  --sidebar-accent-foreground: #f2f3f2;
+  --sidebar-border: #5d6064;
+  --sidebar-ring: #00703c;
 
   --bg-gradient:
     radial-gradient(circle at 16% 14%, #303134 0, #30313400 36%),
     radial-gradient(circle at 84% 14%, #3a3d42 0, #3a3d4200 40%),
     linear-gradient(175deg, #252526, #1f2022 78%);
-
-  --panel-bg: #2d2f32eb;
   --panel-shadow: 0 10px 26px rgba(0, 0, 0, 0.42);
-  --tab-inactive-bg: #f3f3f3;
-  --tab-inactive-text: #000;
-  --tab-active-bg: #00703c;
-  --tab-active-text: #fff;
-  --subtle-bg: #ececec;
-  --subtle-text: #000;
-  --subtle-border: #fff;
-  --card-bg: #33363a;
   --row-bg: #2a2c2f;
   --calendar-day-bg: #2f3236;
   --calendar-date-text: #d7dbd7;
@@ -81,122 +153,90 @@
   --calendar-medal-icon: #00703c;
   --calendar-medal-text: #f2f3f2;
   --day-item-bg: #1f3864;
-  --day-item-text: #fff;
-  --day-item-border: #fff;
-  --day-item-selected: #fff;
-  --input-bg: #393c40;
-  --input-text: #fff;
-  --code-bg: #33363a;
+  --day-item-text: #ffffff;
+  --day-item-border: #ffffff;
+  --day-item-selected: #ffffff;
+  --error: #ff9b9b;
 }
 
-[data-theme='queen'] {
-  --green-700: #fc5d87;
-  --surface: #fff4f3;
-  --line: #e7b8c8;
-  --ink: #1f1718;
-  --muted: #654f58;
-  --danger: #c04564;
-  --error: #a41f46;
+/* ── Queen theme ── */
+[data-theme="queen"] {
+  --background: #fff4f3;
+  --foreground: #1f1718;
+  --card: #fff4f3ec;
+  --card-foreground: #1f1718;
+  --popover: #fff4f3;
+  --popover-foreground: #1f1718;
+  --primary: #fc5d87;
+  --primary-foreground: #000000;
+  --secondary: #ffcfe0;
+  --secondary-foreground: #000000;
+  --muted: #fff4f3;
+  --muted-foreground: #654f58;
+  --accent: #fff4f3;
+  --accent-foreground: #1f1718;
+  --destructive: #c04564;
+  --border: #e7b8c8;
+  --input: #e7b8c8;
+  --ring: #fc5d87;
+
+  --chart-1: #fc5d87;
+  --chart-2: #654f58;
+  --chart-3: #c04564;
+  --chart-4: #e7b8c8;
+  --chart-5: #fcd598;
+
+  --sidebar: #fff4f3;
+  --sidebar-foreground: #1f1718;
+  --sidebar-primary: #fc5d87;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #fff4f3;
+  --sidebar-accent-foreground: #1f1718;
+  --sidebar-border: #e7b8c8;
+  --sidebar-ring: #fc5d87;
 
   --bg-gradient:
     radial-gradient(circle at 14% 16%, #ffcfe0 0, #ffcfe000 36%),
     radial-gradient(circle at 82% 17%, #fcd598 0, #fcd59800 40%),
     linear-gradient(170deg, #fff4f3, #ffd9e6 58%, #fcd598 100%);
-
-  --panel-bg: #fff4f3ec;
   --panel-shadow: 0 8px 24px rgba(130, 55, 81, 0.16);
-  --tab-inactive-bg: #fff;
-  --tab-inactive-text: #000;
-  --tab-active-bg: #fc5d87;
-  --tab-active-text: #000;
-  --subtle-bg: #ffcfe0;
-  --subtle-text: #000;
-  --subtle-border: #e7b8c8;
-  --card-bg: #fff4f3;
-  --row-bg: #fff;
+  --row-bg: #ffffff;
   --calendar-day-bg: #fff7f7;
   --calendar-date-text: #654f58;
-  --calendar-medal-bg: #fff;
+  --calendar-medal-bg: #ffffff;
   --calendar-medal-border: #eeb6c7;
   --calendar-medal-icon: #fc5d87;
   --calendar-medal-text: #1f1718;
   --day-item-bg: #fcd598;
-  --day-item-text: #000;
+  --day-item-text: #000000;
   --day-item-border: #8d6737;
-  --day-item-selected: #000;
-  --input-bg: #fff;
-  --input-text: #000;
-  --code-bg: #fff4f3;
+  --day-item-selected: #000000;
+  --error: #a41f46;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background: var(--bg-gradient);
-}
-
-h1,
-h2,
-h3,
-p {
-  margin: 0;
-}
-
-code {
-  font-family: 'Cascadia Code', 'Consolas', monospace;
-  background: var(--code-bg);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  padding: 1px 4px;
-}
-
-button,
-input,
-select {
-  font: inherit;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 8px 12px;
-  background: var(--green-700);
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-  transition: filter 140ms ease, transform 140ms ease;
-}
-
-button:hover {
-  filter: brightness(1.05);
-}
-
-button:active {
-  transform: translateY(1px);
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-input {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--input-bg);
-  color: var(--input-text);
-}
-
-select {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 7px 10px;
-  background: var(--input-bg);
-  color: var(--input-text);
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    background: var(--bg-gradient);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, p {
+    margin: 0;
+  }
+  code {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    background: var(--accent);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 4px;
+  }
 }
