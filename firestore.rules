@@ -32,10 +32,38 @@ service cloud.firestore {
       && isTimestampLike(data.updatedAt);
     }
 
+    function hasValidFavoriteShape(data, userId, favoriteId) {
+      return data.keys().hasOnly([
+        'id',
+        'userId',
+        'name',
+        'exerciseNames',
+        'createdAt',
+        'updatedAt',
+      ])
+      && data.id == favoriteId
+      && data.userId == userId
+      && data.name is string
+      && data.name.size() > 0
+      && data.name.size() <= 80
+      && data.exerciseNames is list
+      && data.exerciseNames.size() > 0
+      && data.exerciseNames.size() <= 50
+      && isTimestampLike(data.createdAt)
+      && isTimestampLike(data.updatedAt);
+    }
+
     match /users/{userId}/sessions/{sessionId} {
       allow read: if isOwner(userId);
       allow create, update: if isOwner(userId)
         && hasValidSessionShape(request.resource.data, userId, sessionId);
+      allow delete: if isOwner(userId);
+    }
+
+    match /users/{userId}/favoriteTemplates/{favoriteId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && hasValidFavoriteShape(request.resource.data, userId, favoriteId);
       allow delete: if isOwner(userId);
     }
   }

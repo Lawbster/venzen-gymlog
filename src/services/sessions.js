@@ -50,7 +50,7 @@ export function subscribeSessions(userId, onNext, onError) {
   )
 }
 
-export async function startWorkoutSession(userId) {
+export async function startWorkoutSession(userId, options = {}) {
   const sessionsRef = sessionsCollection(userId)
   const activeSessionQuery = query(
     sessionsRef,
@@ -65,13 +65,22 @@ export async function startWorkoutSession(userId) {
 
   const sessionId = crypto.randomUUID()
   const now = nowIso()
+  const sessionName =
+    typeof options.name === 'string' && options.name.trim()
+      ? options.name.trim()
+      : null
+  const initialExercises = Array.isArray(options.initialExercises)
+    ? options.initialExercises
+    : []
+
   const session = {
     id: sessionId,
     userId,
     status: 'active',
+    ...(sessionName ? { name: sessionName } : {}),
     startedAt: now,
     endedAt: null,
-    exercises: [],
+    exercises: initialExercises,
     createdAt: now,
     updatedAt: now,
   }

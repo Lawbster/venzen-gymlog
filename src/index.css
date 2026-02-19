@@ -240,3 +240,24 @@
     padding: 1px 4px;
   }
 }
+
+.favorite-select {
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  height: 2.25rem;
+  padding: 0 0.75rem;
+  width: 100%;
+}
+
+[data-theme="dark"] .favorite-select {
+  background: #2f3236;
+  color: #f2f3f2;
+  border-color: #5d6064;
+  color-scheme: dark;
+}
+
+[data-theme="dark"] .favorite-select:hover {
+  background: #272a2d;
+}

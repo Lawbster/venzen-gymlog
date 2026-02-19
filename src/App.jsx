@@ -17,7 +17,7 @@ import {
   ChevronsUpDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardAction } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -63,6 +63,7 @@ import {
   nowIso,
   toDayKey,
 } from './lib/date'
+import { buildWorkoutCsv, getCurrentMonthKey } from './lib/export'
 import {
   deleteWorkoutSession,
   mutateSessionExercises,
@@ -70,6 +71,11 @@ import {
   subscribeSessions,
   updateWorkoutSession,
 } from './services/sessions'
+import {
+  createFavoriteTemplate,
+  deleteFavoriteTemplate,
+  subscribeFavoriteTemplates,
+} from './services/favorites'
 
 const GOOGLE_PROVIDER = new GoogleAuthProvider()
 const DEFAULT_APP_TITLE = 'Venzen Gym Log'
@@ -188,6 +194,83 @@ function findExerciseId(name) {
     (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
   )
   return exact?.id ?? null
+}
+
+function normalizeExerciseNames(exerciseNames) {
+  const seen = new Set()
+  const normalized = []
+
+  for (const rawName of exerciseNames) {
+    const name = String(rawName || '').trim()
+    if (!name) {
+      continue
+    }
+
+    const key = name.toLowerCase()
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    normalized.push(name)
+  }
+
+  return normalized
+}
+
+function buildSessionExercisesFromTemplate(exerciseNames, timestamp) {
+  return normalizeExerciseNames(exerciseNames).map((name) => ({
+    id: crypto.randomUUID(),
+    name,
+    catalogId: findExerciseId(name),
+    startedAt: timestamp,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    sets: [],
+  }))
+}
+
+function toLocalMonthKey(input) {
+  const date = new Date(input)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  return `${year}-${month}`
+}
+
+function formatMonthOptionLabel(monthKey) {
+  if (!monthKey || !monthKey.includes('-')) {
+    return monthKey
+  }
+  const [yearText, monthText] = monthKey.split('-')
+  const year = Number(yearText)
+  const month = Number(monthText)
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return monthKey
+  }
+  return new Date(year, month - 1, 1).toLocaleDateString([], {
+    month: 'long',
+    year: 'numeric',
+  })
+}
+
+function getFavoriteButtonClass(theme, isSelected) {
+  if (theme === 'dark') {
+    return isSelected
+      ? 'bg-white text-black hover:bg-white/90'
+      : 'bg-transparent text-white hover:bg-white/10'
+  }
+
+  if (theme === 'queen') {
+    return isSelected
+      ? 'bg-primary text-white hover:bg-primary/90'
+      : 'bg-transparent text-foreground hover:bg-primary/15'
+  }
+
+  return isSelected
+    ? 'bg-[#4a4a4a] text-white hover:bg-[#3f3f3f]'
+    : 'bg-white text-black hover:bg-gray-100'
 }
 
 function ExerciseCombobox({ value, onChange, disabled }) {
@@ -474,6 +557,7 @@ function HistoryPanel({
   onSelectDay,
   sessionsByDay,
   disabled,
+  onOpenExportDialog,
   onRequestRenameWorkout,
   onRequestDeleteWorkout,
 }) {
@@ -515,6 +599,14 @@ function HistoryPanel({
     <section className="history-grid">
       <Card className="shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
         <CardContent>
+          <button
+            type="button"
+            className="text-sm underline text-muted-foreground hover:text-foreground mb-3 w-fit"
+            onClick={onOpenExportDialog}
+            disabled={disabled}
+          >
+            Export log to CSV
+          </button>
           <div className="flex justify-between items-center gap-2 mb-4">
             <Button
               variant="secondary"
@@ -757,11 +849,22 @@ function App() {
   const [sessions, setSessions] = useState([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
   const [sessionsError, setSessionsError] = useState('')
+  const [favoriteTemplates, setFavoriteTemplates] = useState([])
+  const [favoriteTemplatesLoading, setFavoriteTemplatesLoading] = useState(true)
   const [actionError, setActionError] = useState('')
   const [isBusy, setIsBusy] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [renameTarget, setRenameTarget] = useState(null)
   const [renameDraft, setRenameDraft] = useState('')
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const [exportScope, setExportScope] = useState('all')
+  const [exportMonth, setExportMonth] = useState(() => getCurrentMonthKey())
+  const [exportError, setExportError] = useState('')
+  const [favoriteDialogOpen, setFavoriteDialogOpen] = useState(false)
+  const [favoriteNameDraft, setFavoriteNameDraft] = useState('')
+  const [favoriteExerciseInput, setFavoriteExerciseInput] = useState('')
+  const [favoriteExerciseNames, setFavoriteExerciseNames] = useState([])
+  const [selectedFavoriteTemplateId, setSelectedFavoriteTemplateId] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
   const [nowMs, setNowMs] = useState(() => Date.now())
   const [installPrompt, setInstallPrompt] = useState(null)
@@ -820,6 +923,34 @@ function App() {
     return unsubscribe
   }, [user])
 
+  useEffect(() => {
+    if (!user) {
+      setFavoriteTemplates([])
+      setFavoriteTemplatesLoading(false)
+      setSelectedFavoriteTemplateId('')
+      return undefined
+    }
+
+    setFavoriteTemplatesLoading(true)
+
+    const unsubscribe = subscribeFavoriteTemplates(
+      user.uid,
+      (nextFavorites) => {
+        setFavoriteTemplates(nextFavorites)
+        setFavoriteTemplatesLoading(false)
+        setSelectedFavoriteTemplateId((currentId) =>
+          nextFavorites.some((template) => template.id === currentId) ? currentId : '',
+        )
+      },
+      (error) => {
+        setActionError(error.message)
+        setFavoriteTemplatesLoading(false)
+      },
+    )
+
+    return unsubscribe
+  }, [user])
+
   const activeSession = useMemo(
     () => sessions.find((session) => session.status === 'active') || null,
     [sessions],
@@ -835,6 +966,13 @@ function App() {
         new Date(left.createdAt || 0).getTime(),
     )
   }, [activeSession])
+
+  const selectedFavoriteTemplate = useMemo(
+    () =>
+      favoriteTemplates.find((template) => template.id === selectedFavoriteTemplateId) ||
+      null,
+    [favoriteTemplates, selectedFavoriteTemplateId],
+  )
 
   const hasNotificationSupport =
     typeof window !== 'undefined' &&
@@ -855,6 +993,26 @@ function App() {
       map.set(key, list)
     }
     return map
+  }, [sessions])
+
+  const exportMonthOptions = useMemo(() => {
+    const monthKeys = new Set()
+    for (const session of sessions) {
+      if (session.status !== 'ended') {
+        continue
+      }
+      const key = toLocalMonthKey(session.startedAt)
+      if (key) {
+        monthKeys.add(key)
+      }
+    }
+
+    return Array.from(monthKeys)
+      .sort((left, right) => right.localeCompare(left))
+      .map((key) => ({
+        key,
+        label: formatMonthOptionLabel(key),
+      }))
   }, [sessions])
 
   async function runAction(action) {
@@ -901,7 +1059,24 @@ function App() {
       return
     }
     await runAction(async () => {
-      await startWorkoutSession(user.uid)
+      const timestamp = nowIso()
+      const templateExercises = selectedFavoriteTemplate
+        ? buildSessionExercisesFromTemplate(
+            selectedFavoriteTemplate.exerciseNames || [],
+            timestamp,
+          )
+        : []
+      const createdSession = await startWorkoutSession(user.uid, {
+        name: selectedFavoriteTemplate?.name || '',
+        initialExercises: templateExercises,
+      })
+      setCollapsedExerciseMap(() => {
+        const nextMap = {}
+        for (const [index, exercise] of (createdSession.exercises || []).entries()) {
+          nextMap[exercise.id] = index > 0
+        }
+        return nextMap
+      })
       setSuccessMessage('')
       setActiveTab('log')
     })
@@ -931,7 +1106,7 @@ function App() {
     if (user && hasNotificationSupport && Notification.permission === 'default') {
       Notification.requestPermission()
     }
-  }, [user])
+  }, [user, hasNotificationSupport])
 
   useEffect(() => {
     function onBeforeInstall(event) {
@@ -946,6 +1121,122 @@ function App() {
     if (!installPrompt) return
     await installPrompt.prompt()
     setInstallPrompt(null)
+  }
+
+  function openExportDialog() {
+    setExportError('')
+    if (exportMonthOptions.length === 0) {
+      setExportMonth('')
+    } else if (!exportMonthOptions.some((option) => option.key === exportMonth)) {
+      const currentMonthKey = getCurrentMonthKey()
+      const fallbackKey =
+        exportMonthOptions.find((option) => option.key === currentMonthKey)?.key ||
+        exportMonthOptions[0].key
+      setExportMonth(fallbackKey)
+    }
+    setExportDialogOpen(true)
+  }
+
+  function closeExportDialog() {
+    setExportError('')
+    setExportDialogOpen(false)
+  }
+
+  function handleDownloadCsv() {
+    if (exportScope === 'month' && !exportMonth) {
+      setExportError('No logged workout months are available.')
+      return
+    }
+
+    const { csvText, rowCount } = buildWorkoutCsv(sessions, {
+      scope: exportScope,
+      monthKey: exportMonth,
+    })
+
+    if (exportScope === 'month' && rowCount === 0) {
+      setExportError('No workouts detected in selected month.')
+      return
+    }
+
+    const suffix = exportScope === 'month' ? exportMonth : 'all'
+    const fileName = `venzen-gym-log-${suffix}.csv`
+    const csvBlob = new Blob(['\uFEFF', csvText], {
+      type: 'text/csv;charset=utf-8;',
+    })
+    const blobUrl = URL.createObjectURL(csvBlob)
+    const anchor = document.createElement('a')
+    anchor.href = blobUrl
+    anchor.download = fileName
+    document.body.append(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(blobUrl)
+
+    closeExportDialog()
+  }
+
+  function handleTabChange(nextTab) {
+    setActiveTab(nextTab)
+    if (nextTab !== 'log') {
+      setSuccessMessage('')
+    }
+  }
+
+  function openFavoriteDialog() {
+    setFavoriteNameDraft('')
+    setFavoriteExerciseInput('')
+    setFavoriteExerciseNames([])
+    setFavoriteDialogOpen(true)
+  }
+
+  function resetFavoriteDialog() {
+    setFavoriteDialogOpen(false)
+    setFavoriteNameDraft('')
+    setFavoriteExerciseInput('')
+    setFavoriteExerciseNames([])
+  }
+
+  function addFavoriteExercise() {
+    const trimmed = favoriteExerciseInput.trim()
+    if (!trimmed) {
+      return
+    }
+
+    setFavoriteExerciseNames((currentNames) =>
+      normalizeExerciseNames([...currentNames, trimmed]),
+    )
+    setFavoriteExerciseInput('')
+  }
+
+  function removeFavoriteExercise(name) {
+    const targetName = name.toLowerCase()
+    setFavoriteExerciseNames((currentNames) =>
+      currentNames.filter((candidate) => candidate.toLowerCase() !== targetName),
+    )
+  }
+
+  async function saveFavoriteTemplate() {
+    if (!user) {
+      return
+    }
+
+    const nextName = favoriteNameDraft.trim()
+    const nextExerciseNames = normalizeExerciseNames(favoriteExerciseNames)
+    if (!nextName || nextExerciseNames.length === 0) {
+      return
+    }
+
+    const saved = await runAction(async () => {
+      const createdTemplate = await createFavoriteTemplate(user.uid, {
+        name: nextName,
+        exerciseNames: nextExerciseNames,
+      })
+      setSelectedFavoriteTemplateId(createdTemplate.id)
+    })
+
+    if (saved) {
+      resetFavoriteDialog()
+    }
   }
 
   async function handleAddExercise(event) {
@@ -1076,6 +1367,14 @@ function App() {
     })
   }
 
+  function requestDeleteFavoriteTemplate(template) {
+    setDeleteTarget({
+      type: 'favoriteTemplate',
+      favoriteTemplateId: template.id,
+      favoriteTemplateName: template.name,
+    })
+  }
+
   function openRenameDialog(targetWorkout) {
     setRenameTarget(targetWorkout)
     setRenameDraft(targetWorkout.name)
@@ -1106,6 +1405,11 @@ function App() {
     await runAction(async () => {
       if (deleteTarget.type === 'workout') {
         await deleteWorkoutSession(user.uid, deleteTarget.workoutId)
+      } else if (deleteTarget.type === 'favoriteTemplate') {
+        await deleteFavoriteTemplate(user.uid, deleteTarget.favoriteTemplateId)
+        setSelectedFavoriteTemplateId((currentId) =>
+          currentId === deleteTarget.favoriteTemplateId ? '' : currentId,
+        )
       } else if (deleteTarget.type === 'exercise' && activeSession?.id) {
         await mutateSessionExercises(user.uid, activeSession.id, (exercises) =>
           exercises.filter((exercise) => exercise.id !== deleteTarget.exerciseId),
@@ -1137,6 +1441,13 @@ function App() {
       return {
         title: 'Delete exercise?',
         message: `Are you sure you want to delete ${deleteTarget.exerciseName}?`,
+      }
+    }
+
+    if (deleteTarget.type === 'favoriteTemplate') {
+      return {
+        title: 'Delete favorite template?',
+        message: `Are you sure you want to delete ${deleteTarget.favoriteTemplateName}?`,
       }
     }
 
@@ -1180,7 +1491,20 @@ function App() {
     }
 
     return undefined
-  }, [activeSession, sessionElapsedLabel])
+  }, [activeSession, hasNotificationSupport, sessionElapsedLabel])
+
+  useEffect(() => {
+    if (exportMonthOptions.length === 0) {
+      setExportMonth('')
+      return
+    }
+
+    setExportMonth((currentMonth) =>
+      exportMonthOptions.some((option) => option.key === currentMonth)
+        ? currentMonth
+        : exportMonthOptions[0].key,
+    )
+  }, [exportMonthOptions])
 
   const deleteModalContent = getDeleteModalContent()
 
@@ -1304,10 +1628,11 @@ function App() {
         </Card>
       )}
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="log">Logging</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="favorites">Favorites</TabsTrigger>
         </TabsList>
 
         {(sessionsError || actionError) && (
@@ -1320,33 +1645,65 @@ function App() {
 
         <TabsContent value="log">
           <Card className="shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
-            <CardHeader>
-              <CardTitle>Workout Session</CardTitle>
-              {!activeSession && (
-                <CardAction>
-                  <Button onClick={handleStartWorkout} disabled={isBusy}>
-                    Start Workout
-                  </Button>
-                </CardAction>
-              )}
-            </CardHeader>
-
             <CardContent>
               {sessionsLoading && <p>Loading sessions...</p>}
 
               {!sessionsLoading && !activeSession && (
-                <>
+                <div className="grid gap-3">
                   {successMessage && (
                     <p className="text-primary font-medium">{successMessage}</p>
                   )}
+                  {favoriteTemplates.length > 0 && (
+                    <div className="grid gap-2 w-full max-w-[640px]">
+                      <CardTitle>Select favorite</CardTitle>
+                      <div className="grid grid-cols-3 gap-2">
+                        {favoriteTemplates.slice(0, 6).map((template) => {
+                          const isSelected = selectedFavoriteTemplateId === template.id
+                          return (
+                            <Button
+                              key={template.id}
+                              type="button"
+                              variant="secondary"
+                              className={getFavoriteButtonClass(theme, isSelected)}
+                              onClick={() =>
+                                setSelectedFavoriteTemplateId((currentId) =>
+                                  currentId === template.id ? '' : template.id,
+                                )
+                              }
+                              disabled={isBusy || favoriteTemplatesLoading}
+                            >
+                              {template.name}
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  <div className="grid gap-2">
+                    <CardTitle>Start new session</CardTitle>
+                    <Button
+                      onClick={handleStartWorkout}
+                      disabled={isBusy || favoriteTemplatesLoading}
+                      className={cn(
+                        'w-full max-w-[420px] font-semibold',
+                        theme === 'light' && 'bg-[#4a4a4a] text-white hover:bg-[#3f3f3f]',
+                        theme === 'queen' && 'text-white',
+                      )}
+                    >
+                      Start Workout
+                    </Button>
+                  </div>
                   <p className="text-muted-foreground">
                     No active workout. Start one to begin logging exercises and sets.
                   </p>
-                </>
+                </div>
               )}
 
               {activeSession && (
                 <div className="grid gap-3">
+                  <CardHeader className="px-0 pb-0">
+                    <CardTitle>Workout session</CardTitle>
+                  </CardHeader>
                   <p className="text-muted-foreground text-sm">
                     Started: {formatDateTime(activeSession.startedAt)}
                   </p>
@@ -1411,11 +1768,148 @@ function App() {
             onSelectDay={setSelectedDay}
             sessionsByDay={sessionsByDay}
             disabled={isBusy}
+            onOpenExportDialog={openExportDialog}
             onRequestRenameWorkout={openRenameDialog}
             onRequestDeleteWorkout={requestDeleteWorkout}
           />
         </TabsContent>
+
+        <TabsContent value="favorites">
+          <Card className="shadow-[var(--panel-shadow)] backdrop-blur-[5px]">
+            <CardHeader>
+              <CardTitle>Your favorite workouts</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              <div className="grid gap-1.5 w-full max-w-[520px]">
+                <select
+                  id="favorite-template-select"
+                  className="favorite-select"
+                  value={selectedFavoriteTemplateId}
+                  onChange={(event) => setSelectedFavoriteTemplateId(event.target.value)}
+                  disabled={isBusy || favoriteTemplatesLoading}
+                >
+                  <option value="">No template selected</option>
+                  {favoriteTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={openFavoriteDialog}
+                  disabled={isBusy}
+                >
+                  Create Favorite
+                </Button>
+                {selectedFavoriteTemplate && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => requestDeleteFavoriteTemplate(selectedFavoriteTemplate)}
+                    disabled={isBusy}
+                  >
+                    <Trash2 className="size-4" />
+                    Delete Favorite
+                  </Button>
+                )}
+              </div>
+
+              {selectedFavoriteTemplate ? (
+                <p className="text-sm text-muted-foreground">
+                  Exercises: {selectedFavoriteTemplate.exerciseNames.join(', ')}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No favorite selected.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Export CSV dialog */}
+      <Dialog open={exportDialogOpen} onOpenChange={(open) => { if (!open) closeExportDialog() }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export log to CSV</DialogTitle>
+            <DialogDescription>Select a period and download your workout log.</DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-1.5">
+              <Label>Period</Label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={exportScope === 'all' ? 'default' : 'secondary'}
+                  onClick={() => {
+                    setExportScope('all')
+                    setExportError('')
+                  }}
+                >
+                  All
+                </Button>
+                <Button
+                  type="button"
+                  variant={exportScope === 'month' ? 'default' : 'secondary'}
+                  onClick={() => {
+                    setExportScope('month')
+                    setExportError('')
+                  }}
+                >
+                  By month
+                </Button>
+              </div>
+            </div>
+
+            {exportScope === 'month' && (
+              <div className="grid gap-1.5 max-w-[240px]">
+                <Label htmlFor="export-month">Month</Label>
+                {exportMonthOptions.length > 0 ? (
+                  <select
+                    id="export-month"
+                    value={exportMonth}
+                    onChange={(event) => {
+                      setExportMonth(event.target.value)
+                      setExportError('')
+                    }}
+                  >
+                    {exportMonthOptions.map((option) => (
+                      <option key={option.key} value={option.key}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No logged workout months found.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {exportError && (
+              <p className="text-sm text-destructive">{exportError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="secondary" onClick={closeExportDialog}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDownloadCsv}
+              disabled={exportScope === 'month' && exportMonthOptions.length === 0}
+            >
+              Download CSV
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation dialog */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}>
@@ -1456,6 +1950,95 @@ function App() {
             </Button>
             <Button onClick={confirmRename} disabled={isBusy || !renameDraft.trim()}>
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Favorite template dialog */}
+      <Dialog
+        open={favoriteDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            resetFavoriteDialog()
+          } else {
+            setFavoriteDialogOpen(true)
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create favorite template</DialogTitle>
+            <DialogDescription>
+              Name your template and add the exercises you want preloaded.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="favorite-template-name">Template name</Label>
+              <Input
+                id="favorite-template-name"
+                value={favoriteNameDraft}
+                onChange={(event) => setFavoriteNameDraft(event.target.value)}
+                placeholder="Bicep Day"
+                autoFocus
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="favorite-template-exercise">Add exercise</Label>
+              <div className="flex flex-wrap gap-2 items-end">
+                <div className="min-w-[230px] grow">
+                  <ExerciseCombobox
+                    value={favoriteExerciseInput}
+                    onChange={setFavoriteExerciseInput}
+                    disabled={isBusy}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={addFavoriteExercise}
+                  disabled={!favoriteExerciseInput.trim()}
+                >
+                  Add exercise
+                </Button>
+              </div>
+            </div>
+
+            {favoriteExerciseNames.length > 0 && (
+              <ul className="list-none m-0 p-0 grid gap-2 max-h-[220px] overflow-auto">
+                {favoriteExerciseNames.map((name) => (
+                  <li
+                    key={name}
+                    className="flex items-center justify-between gap-2 border border-border rounded-md px-2 py-1.5"
+                  >
+                    <span className="text-sm">{name}</span>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      type="button"
+                      onClick={() => removeFavoriteExercise(name)}
+                      aria-label={`Remove ${name}`}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="secondary" onClick={resetFavoriteDialog} disabled={isBusy}>
+              Cancel
+            </Button>
+            <Button
+              onClick={saveFavoriteTemplate}
+              disabled={isBusy || !favoriteNameDraft.trim() || favoriteExerciseNames.length === 0}
+            >
+              Save template
             </Button>
           </DialogFooter>
         </DialogContent>
