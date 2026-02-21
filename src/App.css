@@ -98,6 +98,14 @@
   gap: 12px;
 }
 
+.exercise-card {
+  background-color: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+[data-theme="sleek"] .exercise-card {
+  background-color: var(--background);
+}
+
 @media (min-width: 980px) {
   .history-grid {
     grid-template-columns: 1.4fr 1fr 1fr;

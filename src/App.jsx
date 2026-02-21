@@ -79,6 +79,20 @@ import {
 
 const GOOGLE_PROVIDER = new GoogleAuthProvider()
 const DEFAULT_APP_TITLE = 'Venzen Gym Log'
+const THEME_OPTIONS = [
+  { key: 'striking', label: 'Emil' },
+  { key: 'vibrant', label: 'Vibe' },
+  { key: 'redlively', label: 'Rose' },
+  { key: 'sleek', label: 'Moss' },
+]
+const DARK_LOGO_THEMES = new Set([
+  'striking',
+  'sleek',
+])
+const DARK_SURFACE_THEMES = new Set([
+  'striking',
+  'sleek',
+])
 
 function GoogleIcon({ className }) {
   return (
@@ -103,9 +117,10 @@ function GoogleIcon({ className }) {
   )
 }
 
-function AppBrand({ theme = 'light', compact = false }) {
-  const logoPath =
-    theme === 'dark' ? '/VENZENLOGODARK.png' : '/VENZENLOGOLIGHT.png'
+function AppBrand({ theme = 'striking', compact = false }) {
+  const logoPath = DARK_LOGO_THEMES.has(theme)
+    ? '/VENZENLOGODARK.png'
+    : '/VENZENLOGOLIGHT.png'
 
   return (
     <img
@@ -256,16 +271,10 @@ function formatMonthOptionLabel(monthKey) {
 }
 
 function getFavoriteButtonClass(theme, isSelected) {
-  if (theme === 'dark') {
+  if (DARK_SURFACE_THEMES.has(theme)) {
     return isSelected
       ? 'bg-white text-black hover:bg-white/90'
       : 'bg-transparent text-white hover:bg-white/10'
-  }
-
-  if (theme === 'queen') {
-    return isSelected
-      ? 'bg-primary text-white hover:bg-primary/90'
-      : 'bg-transparent text-foreground hover:bg-primary/15'
   }
 
   return isSelected
@@ -465,7 +474,7 @@ function ExerciseCard({
 
   return (
     <article
-      className="border border-border rounded-xl bg-accent p-3 grid gap-2.5 cursor-pointer"
+      className="exercise-card border border-border rounded-xl p-3 grid gap-2.5 cursor-pointer"
       onClick={handleCardToggle}
       tabIndex={0}
       role="button"
@@ -497,28 +506,7 @@ function ExerciseCard({
       </header>
       {!isCollapsed && (
         <>
-          <ul className="list-none p-0 m-0 grid gap-2">
-            {exercise.sets.length === 0 && (
-              <li className="text-muted-foreground">No sets yet. Add your first set.</li>
-            )}
-            {exercise.sets.map((setEntry, index) => (
-              <SetRow
-                key={setEntry.id}
-                setEntry={setEntry}
-                index={index}
-                isLatest={index === exercise.sets.length - 1}
-                nowMs={nowMs}
-                disabled={disabled}
-                onDelete={(setId) =>
-                  onDeleteSet(exercise.id, exercise.name, setId, setEntry, index)
-                }
-                onSave={(setId, nextWeight, nextReps) =>
-                  onUpdateSet(exercise.id, setId, nextWeight, nextReps)
-                }
-              />
-            ))}
-          </ul>
-          <form className="flex flex-wrap gap-2 items-center mt-2" onSubmit={handleAddSet}>
+          <form className="flex flex-wrap gap-2 items-center" onSubmit={handleAddSet}>
             <Input
               type="text"
               inputMode="decimal"
@@ -544,6 +532,27 @@ function ExerciseCard({
               Add Set
             </Button>
           </form>
+          <ul className="list-none p-0 m-0 grid gap-2 mt-2">
+            {exercise.sets.length === 0 && (
+              <li className="text-muted-foreground">No sets yet. Add your first set.</li>
+            )}
+            {exercise.sets.map((setEntry, index) => (
+              <SetRow
+                key={setEntry.id}
+                setEntry={setEntry}
+                index={index}
+                isLatest={index === exercise.sets.length - 1}
+                nowMs={nowMs}
+                disabled={disabled}
+                onDelete={(setId) =>
+                  onDeleteSet(exercise.id, exercise.name, setId, setEntry, index)
+                }
+                onSave={(setId, nextWeight, nextReps) =>
+                  onUpdateSet(exercise.id, setId, nextWeight, nextReps)
+                }
+              />
+            ))}
+          </ul>
         </>
       )}
     </article>
@@ -838,9 +847,8 @@ function HistoryPanel({
 function App() {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('venzen_theme')
-    return saved === 'dark' || saved === 'queen' || saved === 'light'
-      ? saved
-      : 'light'
+    const supportedThemes = new Set(THEME_OPTIONS.map((option) => option.key))
+    return supportedThemes.has(saved) ? saved : 'striking'
   })
   const [user, setUser] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
@@ -1580,24 +1588,26 @@ function App() {
       <header className="flex justify-between gap-3 items-start max-sm:flex-col max-sm:items-stretch">
         <div className="grid gap-2">
           <AppBrand theme={theme} compact />
-          <p className="text-muted-foreground text-[0.8rem]">Signed in as {user.email}</p>
+          <p className="text-muted-foreground text-[0.74rem]">Signed in as {user.email}</p>
         </div>
         <div className="inline-flex flex-col items-end gap-1.5">
-          <div className="inline-flex gap-1 items-center text-muted-foreground text-sm" role="group" aria-label="Theme mode">
-            {['light', 'queen', 'dark'].map((t, i) => (
-              <span key={t} className="contents">
-                {i > 0 && <span>-</span>}
-                <button
-                  type="button"
-                  className={cn(
-                    'appearance-none border-0 bg-transparent p-0 cursor-pointer text-sm underline',
-                    theme === t ? 'text-foreground font-bold' : 'text-muted-foreground',
-                  )}
-                  onClick={() => setTheme(t)}
-                >
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </button>
-              </span>
+          <div
+            className="inline-flex flex-wrap justify-end gap-x-2 gap-y-1 items-center text-muted-foreground text-sm max-w-[280px]"
+            role="group"
+            aria-label="Theme mode"
+          >
+            {THEME_OPTIONS.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                className={cn(
+                  'appearance-none border-0 bg-transparent p-0 cursor-pointer text-xs underline',
+                  theme === option.key ? 'text-foreground font-bold' : 'text-muted-foreground',
+                )}
+                onClick={() => setTheme(option.key)}
+              >
+                {option.label}
+              </button>
             ))}
           </div>
           <Button
@@ -1684,16 +1694,12 @@ function App() {
                     <Button
                       onClick={handleStartWorkout}
                       disabled={isBusy || favoriteTemplatesLoading}
-                      className={cn(
-                        'w-full max-w-[420px] font-semibold',
-                        theme === 'light' && 'bg-[#4a4a4a] text-white hover:bg-[#3f3f3f]',
-                        theme === 'queen' && 'text-white',
-                      )}
+                      className="w-full max-w-[420px] font-semibold"
                     >
                       Start Workout
                     </Button>
                   </div>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground text-sm">
                     No active workout. Start one to begin logging exercises and sets.
                   </p>
                 </div>
