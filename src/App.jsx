@@ -869,6 +869,7 @@ function App() {
   const [exportMonth, setExportMonth] = useState(() => getCurrentMonthKey())
   const [exportError, setExportError] = useState('')
   const [favoriteDialogOpen, setFavoriteDialogOpen] = useState(false)
+  const [startWorkoutDialogOpen, setStartWorkoutDialogOpen] = useState(false)
   const [favoriteNameDraft, setFavoriteNameDraft] = useState('')
   const [favoriteExerciseInput, setFavoriteExerciseInput] = useState('')
   const [favoriteExerciseNames, setFavoriteExerciseNames] = useState([])
@@ -1064,9 +1065,9 @@ function App() {
 
   async function handleStartWorkout() {
     if (!user) {
-      return
+      return false
     }
-    await runAction(async () => {
+    const wasSuccessful = await runAction(async () => {
       const timestamp = nowIso()
       const templateExercises = selectedFavoriteTemplate
         ? buildSessionExercisesFromTemplate(
@@ -1088,6 +1089,14 @@ function App() {
       setSuccessMessage('')
       setActiveTab('log')
     })
+    return wasSuccessful
+  }
+
+  async function confirmStartWorkoutFromDialog() {
+    const ok = await handleStartWorkout()
+    if (ok) {
+      setStartWorkoutDialogOpen(false)
+    }
   }
 
   async function handleEndWorkout() {
@@ -1692,7 +1701,7 @@ function App() {
                   <div className="grid gap-2">
                     <CardTitle>Start new session</CardTitle>
                     <Button
-                      onClick={handleStartWorkout}
+                      onClick={() => setStartWorkoutDialogOpen(true)}
                       disabled={isBusy || favoriteTemplatesLoading}
                       className="w-full max-w-[420px] font-semibold"
                     >
@@ -1836,6 +1845,52 @@ function App() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={startWorkoutDialogOpen}
+        onOpenChange={(open) => {
+          if (!isBusy) {
+            setStartWorkoutDialogOpen(open)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Ready to start?</DialogTitle>
+            <DialogDescription>
+              {selectedFavoriteTemplate
+                ? `Start "${selectedFavoriteTemplate.name}" with preloaded exercises.`
+                : 'Start a new workout session.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="rounded-lg border border-border bg-background/40 p-2">
+            <img
+              src="/hedda.png"
+              alt="Hedda meme"
+              className="block w-full h-auto max-h-[65vh] object-contain mx-auto rounded-md"
+              loading="lazy"
+            />
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setStartWorkoutDialogOpen(false)}
+              disabled={isBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmStartWorkoutFromDialog}
+              disabled={isBusy || favoriteTemplatesLoading}
+              className="font-semibold"
+            >
+              Start Workout
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Export CSV dialog */}
       <Dialog open={exportDialogOpen} onOpenChange={(open) => { if (!open) closeExportDialog() }}>
