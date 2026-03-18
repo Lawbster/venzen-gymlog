@@ -204,9 +204,13 @@ function parseWeight(raw) {
   return Number(raw.replace(',', '.'))
 }
 
+function normalizeExerciseNameKey(name) {
+  return String(name || '').trim().toLowerCase()
+}
+
 function findExerciseId(name) {
   const exact = EXERCISE_CATALOG.find(
-    (candidate) => candidate.name.toLowerCase() === name.toLowerCase(),
+    (candidate) => normalizeExerciseNameKey(candidate.name) === normalizeExerciseNameKey(name),
   )
   return exact?.id ?? null
 }
@@ -221,7 +225,7 @@ function normalizeExerciseNames(exerciseNames) {
       continue
     }
 
-    const key = name.toLowerCase()
+    const key = normalizeExerciseNameKey(name)
     if (seen.has(key)) {
       continue
     }
@@ -270,6 +274,37 @@ function formatMonthOptionLabel(monthKey) {
   })
 }
 
+function isBetterTopSet(candidate, current) {
+  if (!candidate) {
+    return false
+  }
+
+  if (!current) {
+    return true
+  }
+
+  if (candidate.weightKg !== current.weightKg) {
+    return candidate.weightKg > current.weightKg
+  }
+
+  if (candidate.reps !== current.reps) {
+    return candidate.reps > current.reps
+  }
+
+  return (
+    new Date(candidate.finishedAt || candidate.createdAt || 0).getTime() >
+    new Date(current.finishedAt || current.createdAt || 0).getTime()
+  )
+}
+
+function formatWeightKg(weightKg) {
+  const numeric = Number(weightKg)
+  if (!Number.isFinite(numeric)) {
+    return String(weightKg || '')
+  }
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric)
+}
+
 function getFavoriteButtonClass(theme, isSelected) {
   if (DARK_SURFACE_THEMES.has(theme)) {
     return isSelected
@@ -282,7 +317,7 @@ function getFavoriteButtonClass(theme, isSelected) {
     : 'bg-white text-black hover:bg-gray-100'
 }
 
-function ExerciseCombobox({ value, onChange, disabled }) {
+function ExerciseCombobox({ value, onChange, disabled, options = EXERCISE_PRESETS }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -309,7 +344,7 @@ function ExerciseCombobox({ value, onChange, disabled }) {
           <CommandList>
             <CommandEmpty>No exercise found. Press Add to use custom name.</CommandEmpty>
             <CommandGroup>
-              {EXERCISE_PRESETS.filter(
+              {options.filter(
                 (exercise) => exercise.toLowerCase().includes((value || '').toLowerCase()),
               ).slice(0, 50).map((exercise) => (
                 <CommandItem
@@ -435,6 +470,7 @@ function SetRow({ setEntry, index, isLatest, nowMs, disabled, onDelete, onSave }
 
 function ExerciseCard({
   exercise,
+  topSet,
   nowMs,
   disabled,
   isCollapsed,
@@ -493,16 +529,23 @@ function ExerciseCard({
             Started: {startedAt ? formatDateTime(startedAt) : 'Not available'}
           </p>
         </div>
-        <Button
-          variant="destructive"
-          size="icon"
-          onClick={() => onDeleteExercise(exercise.id)}
-          disabled={disabled}
-          aria-label={`Delete exercise ${exercise.name}`}
-          title={`Delete exercise ${exercise.name}`}
-        >
-          <Trash2 />
-        </Button>
+        <div className="grid justify-items-end gap-2">
+          {topSet && (
+            <p className="text-xs text-muted-foreground text-right max-w-[140px]">
+              last top set <span className="font-bold text-foreground">{formatWeightKg(topSet.weightKg)}</span> x <span className="font-bold text-foreground">{topSet.reps}</span>
+            </p>
+          )}
+          <Button
+            variant="destructive"
+            size="icon"
+            onClick={() => onDeleteExercise(exercise.id)}
+            disabled={disabled}
+            aria-label={`Delete exercise ${exercise.name}`}
+            title={`Delete exercise ${exercise.name}`}
+          >
+            <Trash2 />
+          </Button>
+        </div>
       </header>
       {!isCollapsed && (
         <>
@@ -965,6 +1008,40 @@ function App() {
     [sessions],
   )
 
+  const exerciseOptions = useMemo(() => {
+    const optionsByKey = new Map()
+
+    for (const exercise of EXERCISE_CATALOG) {
+      const name = String(exercise.name || '').trim()
+      const key = normalizeExerciseNameKey(name)
+      if (key && !optionsByKey.has(key)) {
+        optionsByKey.set(key, name)
+      }
+    }
+
+    for (const template of favoriteTemplates) {
+      for (const exerciseName of template.exerciseNames || []) {
+        const name = String(exerciseName || '').trim()
+        const key = normalizeExerciseNameKey(name)
+        if (key && !optionsByKey.has(key)) {
+          optionsByKey.set(key, name)
+        }
+      }
+    }
+
+    for (const session of sessions) {
+      for (const exercise of session.exercises || []) {
+        const name = String(exercise.name || '').trim()
+        const key = normalizeExerciseNameKey(name)
+        if (key && !optionsByKey.has(key)) {
+          optionsByKey.set(key, name)
+        }
+      }
+    }
+
+    return Array.from(optionsByKey.values())
+  }, [favoriteTemplates, sessions])
+
   const sortedActiveExercises = useMemo(() => {
     if (!activeSession) {
       return []
@@ -973,8 +1050,48 @@ function App() {
       (left, right) =>
         new Date(right.createdAt || 0).getTime() -
         new Date(left.createdAt || 0).getTime(),
-    )
+      )
   }, [activeSession])
+
+  const topSetByExerciseName = useMemo(() => {
+    const topSets = new Map()
+
+    for (const session of sessions) {
+      if (session.status !== 'ended') {
+        continue
+      }
+
+      for (const exercise of session.exercises || []) {
+        const key = normalizeExerciseNameKey(exercise.name)
+        if (!key) {
+          continue
+        }
+
+        for (const setEntry of exercise.sets || []) {
+          const candidateWeight = Number(setEntry.weightKg)
+          const candidateReps = Number(setEntry.reps)
+
+          if (!Number.isFinite(candidateWeight) || !Number.isFinite(candidateReps) || candidateReps < 1) {
+            continue
+          }
+
+          const candidate = {
+            weightKg: candidateWeight,
+            reps: candidateReps,
+            finishedAt: setEntry.finishedAt || setEntry.createdAt || null,
+            createdAt: setEntry.createdAt || null,
+          }
+
+          const current = topSets.get(key)
+          if (isBetterTopSet(candidate, current)) {
+            topSets.set(key, candidate)
+          }
+        }
+      }
+    }
+
+    return topSets
+  }, [sessions])
 
   const selectedFavoriteTemplate = useMemo(
     () =>
@@ -1739,6 +1856,7 @@ function App() {
                         value={exerciseInput}
                         onChange={setExerciseInput}
                         disabled={isBusy}
+                        options={exerciseOptions}
                       />
                     </div>
                     <Button type="submit" disabled={isBusy}>
@@ -1758,6 +1876,7 @@ function App() {
                       <ExerciseCard
                         key={exercise.id}
                         exercise={exercise}
+                        topSet={topSetByExerciseName.get(normalizeExerciseNameKey(exercise.name)) || null}
                         nowMs={nowMs}
                         disabled={isBusy}
                         isCollapsed={Boolean(collapsedExerciseMap[exercise.id])}
@@ -2055,6 +2174,7 @@ function App() {
                     value={favoriteExerciseInput}
                     onChange={setFavoriteExerciseInput}
                     disabled={isBusy}
+                    options={exerciseOptions}
                   />
                 </div>
                 <Button
